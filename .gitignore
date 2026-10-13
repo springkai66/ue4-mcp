@@ -1,0 +1,13 @@
+# Unreal Engine 构建产物
+Binaries/
+Intermediate/
+Build/
+Saved/
+DerivedDataCache/
+*.VC.db
+*.opensdf
+*.sdf
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace

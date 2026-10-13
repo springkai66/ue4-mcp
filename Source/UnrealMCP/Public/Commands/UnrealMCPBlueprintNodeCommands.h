@@ -1,0 +1,31 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Json.h"
+
+/**
+ * Handler class for Blueprint Node-related MCP commands
+ */
+class UNREALMCP_API FUnrealMCPBlueprintNodeCommands
+{
+public:
+    FUnrealMCPBlueprintNodeCommands();
+
+    // Handle blueprint node commands
+    TSharedPtr<FJsonObject> HandleCommand(const FString& CommandType, const TSharedPtr<FJsonObject>& Params);
+
+private:
+    // Specific blueprint node command handlers
+    TSharedPtr<FJsonObject> HandleConnectBlueprintNodes(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleAddBlueprintGetSelfComponentReference(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleAddBlueprintEvent(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleAddBlueprintFunctionCall(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleAddBlueprintVariable(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleAddBlueprintInputActionNode(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleAddBlueprintSelfReference(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleFindBlueprintNodes(const TSharedPtr<FJsonObject>& Params);
+    // 新增：创建 Cast 节点（K2Node_DynamicCast），用于把通用引用转为具体类。
+    TSharedPtr<FJsonObject> HandleAddBlueprintCastNode(const TSharedPtr<FJsonObject>& Params);
+    // 新增：在指定类（如 Cast 结果）上读取成员变量或组件，解决只能取 Self 成员的限制。
+    TSharedPtr<FJsonObject> HandleAddBlueprintExternalMemberGetNode(const TSharedPtr<FJsonObject>& Params);
+}; 
