@@ -1,34 +1,19 @@
-# 第三方来源与许可
+# Upstream attribution / 上游来源
 
-## 上游项目
+This repository contains modified C++ editor-plugin and Python MCP-server code derived from **chongdashu/unreal-mcp**:
 
-本插件是下列开源项目的派生版本（editor 插件部分）：
+- Upstream / 上游：https://github.com/chongdashu/unreal-mcp
+- Reference commit / 参考提交：`4e5f00da5073` (2025-04-22)
+- Fork maintainer / 修改版维护者：`springkai66`
 
-- 项目：**chongdashu/unreal-mcp**
-- 地址：https://github.com/chongdashu/unreal-mcp
-- 上游分支／提交：`main` @ `4e5f00da5073`（2025-04-22）
+本仓库同时包含该项目派生的 C++ 编辑器插件与 Python MCP 服务端；主要修改见 [English README](README.md) / [中文 README](README.zh-CN.md)。参考提交用于标明来源，不表示此仓库保留了上游完整提交历史。
 
-上游仓库在本分支创建时**未包含 `LICENSE` 文件**，也**未在源码中保留版权头**；其许可意图仅以上游 `README.md` 声明为准，该文件写有：
+## License declaration / 许可声明
 
-> [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
->
-> ## License
-> MIT
+At the inspected upstream commit, the repository had no root `LICENSE` file or source copyright headers. Its README declared MIT through a license badge and a “License: MIT” section. This fork distributes the derived code under MIT based on that declaration; see [LICENSE](LICENSE).
 
-本仓库据此按 MIT 处理上游代码。由于上游未声明具体的版权年份与版权主体，**本文档不代为推测或补写**；如需在正式分发中补全，请以上游仓库或其作者的书面说明为准。
+检查的上游版本没有根 `LICENSE` 文件和源码版权头，其 README 通过 MIT 徽章及 License 章节声明许可。本派生版本依据该声明采用 MIT。这里不推测上游未提供的版权年份；上游代码仍归其原作者，维护者仅主张本分支修改部分的权利。
 
-## 本分支的修改范围
+Python dependencies retain their own licenses and are resolved through `Python/pyproject.toml` and `Python/uv.lock`; dependency source and binaries are not vendored here. Unreal Engine is not included and remains subject to Epic's license.
 
-本分支在上游基础上做了以下改动（详见仓库提交历史）：
-
-- **UE4.26 适配**：修正 Widget 蓝图创建（`UWidgetBlueprint`）、编译与保存流程，使资产在编辑器重启后可加载。
-- **资产路径参数化**：蓝图与 UMG 创建不再限定固定目录；短名查找先查通用目录，未命中时通过资产注册表在 `/Game` 下按名全局解析（同名多份时拒绝并要求传入完整路径）。
-- **接收层重写**：以字节级 JSON 分帧替代定长缓冲，修正越界写入、分包／粘包、UTF-8 字节长度与部分发送；发送路径带截止时间。
-- **生命周期**：服务器停止改为先置会话取消标志再等待工作线程退出；socket 由所属 SocketSubsystem 释放。
-- **UMG 能力**：按钮与事件绑定、TextBlock 动态绑定、`add_widget_to_viewport` 在 PIE 中实际创建实例。
-- **新增自动化测试**：`Source/UnrealMCP/Private/Tests/UnrealMCPRegressionTests.cpp`。
-- **清理项目专有信息**：移除内部目录常量与项目名硬编码，测试名不再带项目前缀。
-
-## Python 客户端
-
-本仓库**不包含** Python 客户端。上游的 Python 端参考实现位于上游仓库的 `Python/` 目录；使用本项目时请以其为准，并自行确认与其版本兼容。
+Python 依赖各自遵循其许可，本仓库不打包第三方依赖源码或二进制；Unreal Engine 不包含在仓库中，遵循 Epic 的许可。

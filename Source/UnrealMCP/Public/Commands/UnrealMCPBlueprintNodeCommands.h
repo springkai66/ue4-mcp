@@ -15,6 +15,9 @@ public:
     TSharedPtr<FJsonObject> HandleCommand(const FString& CommandType, const TSharedPtr<FJsonObject>& Params);
 
 private:
+    // 查询和整理图表只使用现有 Event Graph
+    TSharedPtr<FJsonObject> HandleGraphLayout(const FString& CommandType, const TSharedPtr<FJsonObject>& Params);
+
     // Specific blueprint node command handlers
     TSharedPtr<FJsonObject> HandleConnectBlueprintNodes(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleAddBlueprintGetSelfComponentReference(const TSharedPtr<FJsonObject>& Params);

@@ -51,6 +51,7 @@ public class UnrealMCP : ModuleRules
 				"Kismet",
 				"KismetCompiler",
 				"BlueprintGraph",
+				"GraphEditor", // 用于节点 Slate 尺寸测量
 				"Projects",
 				"AssetRegistry"
 			}

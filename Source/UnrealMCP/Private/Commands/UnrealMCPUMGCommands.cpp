@@ -139,12 +139,29 @@ namespace
 	}
 }
 
+UWidgetBlueprint* FUnrealMCPUMGCommands::FindLayoutWidgetBlueprint(const FString& BlueprintName)
+{
+    return FindWidgetBlueprintByPathOrName(BlueprintName);
+}
+
 FUnrealMCPUMGCommands::FUnrealMCPUMGCommands()
 {
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& CommandName, const TSharedPtr<FJsonObject>& Params)
 {
+    if (CommandName == TEXT("list_widget_blueprints"))
+    {
+        return HandleListWidgetBlueprints(Params);
+    }
+    if (CommandName == TEXT("get_widget_tree"))
+    {
+        return HandleGetWidgetTree(Params);
+    }
+    if (CommandName == TEXT("add_widget_to_widget"))
+    {
+        return HandleAddWidgetToWidget(Params);
+    }
 	if (CommandName == TEXT("create_umg_widget_blueprint"))
 	{
 		return HandleCreateUMGWidgetBlueprint(Params);
@@ -277,6 +294,10 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateUMGWidgetBlueprint(co
 	// 没有根控件时创建默认 Canvas Panel。
 	if (!WidgetBlueprint->WidgetTree->RootWidget)
 	{
+		// CreateBlueprint 不经过 PostLoad，源树残留的 RF_ArchetypeObject 会
+		// 沿 Outer 链传播，让后续新控件被 IsTemplate 判定为模板；与引擎
+		// UWidgetBlueprint::PostLoad 行为保持一致，这里创建前先清除。
+		WidgetBlueprint->WidgetTree->ClearFlags(RF_ArchetypeObject);
 		UCanvasPanel* RootCanvas = WidgetBlueprint->WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass());
 		WidgetBlueprint->WidgetTree->RootWidget = RootCanvas;
 	}

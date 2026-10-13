@@ -17,6 +17,8 @@
 #include "Camera/CameraActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "EdGraphSchema_K2.h"
+#include "EditorAssetLibrary.h"
+#include "MCPGraphLayout.h"
 
 // Declare the log category
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealMCP, Log, All);
@@ -27,6 +29,10 @@ FUnrealMCPBlueprintNodeCommands::FUnrealMCPBlueprintNodeCommands()
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FString& CommandType, const TSharedPtr<FJsonObject>& Params)
 {
+    if (CommandType == TEXT("format_blueprint_graph") || CommandType == TEXT("get_blueprint_graph"))
+    {
+        return HandleGraphLayout(CommandType, Params);
+    }
     if (CommandType == TEXT("connect_blueprint_nodes"))
     {
         return HandleConnectBlueprintNodes(Params);
@@ -69,6 +75,44 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FSt
     }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint node command: %s"), *CommandType));
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleGraphLayout(const FString& CommandType, const TSharedPtr<FJsonObject>& Params)
+{
+    FString Name;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), Name))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing blueprint_name"));
+    }
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(Name);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint not found"));
+    }
+    if (Blueprint->UbergraphPages.Num() == 0)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint has no Event Graph"));
+    }
+    UEdGraph* Graph = Blueprint->UbergraphPages[0];
+    if (!Graph)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Event Graph unavailable"));
+    }
+    if (CommandType == TEXT("get_blueprint_graph"))
+    {
+        return MCPGraphLayout::Describe(Graph);
+    }
+    TSharedPtr<FJsonObject> Result = MCPGraphLayout::Format(Graph, Params);
+    if (Result->HasField(TEXT("error")))
+    {
+        return Result;
+    }
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Graph layout changed but save failed"));
+    }
+    return Result;
 }
 
 TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleConnectBlueprintNodes(const TSharedPtr<FJsonObject>& Params)
@@ -230,6 +274,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintGetSe
     GetComponentNode->ReconstructNode();
     
     // Mark the blueprint as modified
+    MCPGraphLayout::PlaceNewNode(GetComponentNode, Params);
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
     {
@@ -278,6 +323,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintEvent
     }
 
     // Create the event node
+    const bool bExisting = FUnrealMCPCommonUtils::FindExistingEventNode(EventGraph, EventName) != nullptr;
     UK2Node_Event* EventNode = FUnrealMCPCommonUtils::CreateEventNode(EventGraph, EventName, NodePosition);
     if (!EventNode)
     {
@@ -285,6 +331,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintEvent
     }
 
     // Mark the blueprint as modified
+    if (!bExisting)
+    {
+        MCPGraphLayout::PlaceNewNode(EventNode, Params);
+    }
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
     {
@@ -293,6 +343,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintEvent
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("node_id"), EventNode->NodeGuid.ToString());
+    ResultObj->SetBoolField(TEXT("already_exists"), bExisting);
     return ResultObj;
 }
 
@@ -662,6 +713,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintFunct
     }
 
     // Mark the blueprint as modified
+    MCPGraphLayout::PlaceNewNode(FunctionNode, Params);
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
     {
@@ -818,6 +870,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintInput
     }
 
     // Mark the blueprint as modified
+    MCPGraphLayout::PlaceNewNode(InputActionNode, Params);
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
     {
@@ -867,6 +920,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintSelfR
     }
 
     // Mark the blueprint as modified
+    MCPGraphLayout::PlaceNewNode(SelfNode, Params);
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
     {
@@ -1011,6 +1065,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintCastN
     CastNode->AllocateDefaultPins();
     CastNode->ReconstructNode();
 
+    MCPGraphLayout::PlaceNewNode(CastNode, Params);
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
     {
@@ -1111,6 +1166,7 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintExter
     GetNode->AllocateDefaultPins();
     GetNode->ReconstructNode();
 
+    MCPGraphLayout::PlaceNewNode(GetNode, Params);
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
     if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
     {

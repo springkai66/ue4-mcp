@@ -11,3 +11,27 @@ DerivedDataCache/
 *.suo
 *.xcodeproj
 *.xcworkspace
+
+# Python 环境、缓存和构建产物
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+*.log
+
+# 本机配置与凭据
+.env
+.env.*
+!.env.example
+.mcp.json
+.pi/
+.codex/
+.claude/
+.workbuddy/
+.zcode/
+opencode.json
+opencode.jsonc

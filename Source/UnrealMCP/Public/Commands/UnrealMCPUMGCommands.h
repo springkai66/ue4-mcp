@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Json.h"
 
+class UWidgetBlueprint;
+
 /**
  * Handles UMG (Widget Blueprint) related MCP commands
  * Responsible for creating and modifying UMG Widget Blueprints,
@@ -22,6 +24,12 @@ public:
     TSharedPtr<FJsonObject> HandleCommand(const FString& CommandType, const TSharedPtr<FJsonObject>& Params);
 
 private:
+    // 新布局命令复用原有蓝图查找入口，避免跨文件暴露通用实现。
+    static UWidgetBlueprint* FindLayoutWidgetBlueprint(const FString& BlueprintName);
+    TSharedPtr<FJsonObject> HandleListWidgetBlueprints(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleGetWidgetTree(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleAddWidgetToWidget(const TSharedPtr<FJsonObject>& Params);
+
     /**
      * Create a new UMG Widget Blueprint
      * @param Params - Must include "name" for the blueprint name

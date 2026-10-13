@@ -4,12 +4,7 @@
 #include "Json.h"
 
 /**
- * Handler class for Material-related MCP commands.
- *
- * Lets an external AI create/edit material assets and assign them to mesh
- * components, which closes the MCP boundary that previously prevented the
- * BattleSectorAnchor recolor from working (the Blueprint mesh had no usable
- * vector parameter material that the C++ side could drive).
+ * 处理材质相关命令，支持创建、编辑材质资产及分配网格组件材质。
  */
 class UNREALMCP_API FUnrealMCPMaterialCommands
 {

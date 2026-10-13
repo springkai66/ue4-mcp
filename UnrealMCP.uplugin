@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "UnrealMCP",
-	"Description": "Model Context Protocol (MCP) editor plugin for Unreal Engine 4.26+",
+	"Description": "Model Context Protocol (MCP) editor plugin targeting Unreal Engine 4.26",
 	"Category": "Editor",
 	"CreatedBy": "springkai66",
 	"CreatedByURL": "https://github.com/springkai66",
