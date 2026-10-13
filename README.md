@@ -108,7 +108,11 @@ For UMG, send the AI a sketch or confirm a textual layout first. The plugin expo
 
 ## Validation and limits
 
-UE4.26.2 Win64 plugin compilation and 12 isolated-host automation tests passed (including graph layout and UMG composition suites). Python has 31 passing local tests, including stdio calls to a fake TCP editor. The six client configurations follow their documentation; they have not all been tested in the actual apps. UE5, Mac/Linux, runtime UMG rendering and editor-restart persistence are not fully verified. A host-project automation run also encountered an unresolved heap-corruption exit; isolated tests do not establish its cause.
+UE4.26.2 Win64 plugin compilation and 12 isolated-host automation tests passed (including graph layout and UMG composition suites). Python has 31 passing local tests, including stdio calls to a fake TCP editor. The six client configurations follow their documentation; they have not all been tested in the actual apps. UE5, Mac/Linux, runtime UMG rendering and editor-restart persistence are not fully verified.
+
+Known risk: an automation run in the original host project exited with heap corruption (0xC0000374) before this release. Isolated-host tests pass and cannot attribute that exit to any cause; the new code paths here (off-screen Slate node measurement, editor-object flag handling) have NOT been ruled out as contributors, so treat the plugin as unproven in that environment until a run there completes cleanly.
+
+Clearing `RF_ArchetypeObject` on the source widget tree follows engine `UWidgetBlueprint::PostLoad` behavior for freshly created Blueprints; for assets created by the editor UI this flag is normally already cleared, so the change is a no-op there, but saving after these commands persists the cleared flag into the asset.
 
 ```sh
 uv --directory "C:/path/to/unreal-mcp/Python" run --frozen python -m unittest discover -s tests
