@@ -980,6 +980,18 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
                     return true;
                 }
             }
+            // FIntPoint 无 TBaseStructure 特化，按结构体名匹配；用引擎 ToString 格式 X=.. Y=..
+            if (StructName == TEXT("IntPoint"))
+            {
+                FIntPoint Parsed(0, 0);
+                if (FParse::Value(*Text, TEXT("X="), Parsed.X) && FParse::Value(*Text, TEXT("Y="), Parsed.Y))
+                {
+                    *static_cast<FIntPoint*>(PropertyAddr) = Parsed;
+                    UE_LOG(LogTemp, Display, TEXT("Setting IntPoint property %s to (%d, %d)"),
+                        *PropertyName, Parsed.X, Parsed.Y);
+                    return true;
+                }
+            }
             // 兼容纯数字逗号列表，但非法数值不能静默变成零。
             TArray<FString> Parts;
             Text.ParseIntoArray(Parts, TEXT(","), true);
@@ -1035,8 +1047,7 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
             UE_LOG(LogTemp, Display, TEXT("Setting Rotator property %s to (P%f, Y%f, R%f)"), *PropertyName, Numbers[0], Numbers[1], Numbers[2]);
             return true;
         }
-        // FIntPoint（如 WidgetComponent 的 DrawSize）：与 FVector2D 同形态的整数坐标。
-        // FIntPoint 无 TBaseStructure 特化（仅 IMPLEMENT_STRUCT 注册），按结构体名匹配。
+        // FIntPoint：数组形态（[1800, 460]）。字符串形态已在上方 X=/Y= 分支处理。
         if (StructName == TEXT("IntPoint"))
         {
             if (Numbers.Num() < 2)
@@ -1118,4 +1129,34 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
     OutErrorMessage = FString::Printf(TEXT("Unsupported property type: %s for property %s"),
                                     *Property->GetClass()->GetName(), *PropertyName);
     return false;
+}
+bool FUnrealMCPCommonUtils::SaveLoadedAssetReliable(UObject* Asset, FString& OutError)
+{
+    // 首选 UEditorAssetLibrary；AssetRegistry 未就绪等内部状态会使其拒绝保存。
+    if (UEditorAssetLibrary::SaveLoadedAsset(Asset, false))
+    {
+        return true;
+    }
+    if (!Asset)
+    {
+        OutError = TEXT("Invalid asset");
+        return false;
+    }
+    // 回退：与 add_row 相同的 UPackage 直存路径，不依赖 AssetRegistry。
+    UPackage* AssetPackage = Asset->GetOutermost();
+    if (!AssetPackage)
+    {
+        OutError = TEXT("Asset has no package");
+        return false;
+    }
+    const FString AssetFilename = FPackageName::LongPackageNameToFilename(
+        AssetPackage->GetName(), FPackageName::GetAssetPackageExtension());
+    if (!UPackage::SavePackage(AssetPackage, Asset, RF_Public | RF_Standalone,
+        *AssetFilename, GError, nullptr, false, true, SAVE_NoError))
+    {
+        OutError = FString::Printf(TEXT("SavePackage failed: %s"), *AssetFilename);
+        return false;
+    }
+    UE_LOG(LogTemp, Log, TEXT("SaveLoadedAssetReliable - fallback SavePackage succeeded: %s"), *AssetFilename);
+    return true;
 }

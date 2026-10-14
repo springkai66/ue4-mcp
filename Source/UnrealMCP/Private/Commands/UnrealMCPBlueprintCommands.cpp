@@ -212,10 +212,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCreateBlueprint(const
         Package->MarkPackageDirty();
 
         // 保存失败必须返回错误，避免把仅存在内存中的资产报告为成功。
-        if (!UEditorAssetLibrary::SaveLoadedAsset(NewBlueprint, false))
-        {
-            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint created but save failed"));
-        }
+        FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(NewBlueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Blueprint created but save failed"), *MCPAssetSaveError));
+                }
 
         TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
         ResultObj->SetStringField(TEXT("name"), AssetName);
@@ -352,10 +353,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleAddComponentToBluepri
         {
             return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Component added but Blueprint compilation failed"));
         }
-        if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-        {
-            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Component added but save failed"));
-        }
+        FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Component added but save failed"), *MCPAssetSaveError));
+                }
 
         TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
         ResultObj->SetStringField(TEXT("component_name"), ComponentName);
@@ -579,9 +581,10 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetComponentProperty(
                 UE_LOG(LogTemp, Log, TEXT("SetComponentProperty - Successfully set SpringArm property %s"), *PropertyName);
                 FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
                 ComponentTemplate->PostEditChange();
-                if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
+                FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
                 {
-                    return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("SpringArm property changed but save failed"));
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("SpringArm property changed but save failed"), *MCPAssetSaveError));
                 }
 
                 TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
@@ -825,10 +828,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetComponentProperty(
             FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 
             // 保存到磁盘；否则属性修改在编辑器重启后丢失。
-            if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-            {
-                return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Component property changed but save failed"));
-            }
+            FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Component property changed but save failed"), *MCPAssetSaveError));
+                }
 
             TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
             ResultObj->SetStringField(TEXT("component"), ComponentName);
@@ -928,10 +932,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetPhysicsProperties(
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 
     // 保存失败时保留内存修改并向调用方返回错误。
-    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Physics properties changed but save failed"));
-    }
+    FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Physics properties changed but save failed"), *MCPAssetSaveError));
+                }
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("component"), ComponentName);
@@ -962,10 +967,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleCompileBlueprint(cons
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint compilation failed"));
     }
     // 编译成功后保存，持久化失败不得报告成功。
-    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint compiled but save failed"));
-    }
+    FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Blueprint compiled but save failed"), *MCPAssetSaveError));
+                }
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("name"), BlueprintName);
@@ -1072,10 +1078,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetBlueprintProperty(
         {
             // Mark the blueprint as modified
             FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-            if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-            {
-                return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint property changed but save failed"));
-            }
+            FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Blueprint property changed but save failed"), *MCPAssetSaveError));
+                }
 
             TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
             ResultObj->SetStringField(TEXT("property"), PropertyName);
@@ -1166,10 +1173,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetStaticMeshProperti
 
     // Mark the blueprint as modified
     FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Static mesh properties changed but save failed"));
-    }
+    FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Static mesh properties changed but save failed"), *MCPAssetSaveError));
+                }
 
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("component"), ComponentName);
@@ -1292,10 +1300,11 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintCommands::HandleSetPawnProperties(con
     if (bAnyPropertiesSet)
     {
         FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-        if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-        {
-            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Pawn properties changed but save failed"));
-        }
+        FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Pawn properties changed but save failed"), *MCPAssetSaveError));
+                }
     }
     else if (ResultsObj->Values.Num() == 0)
     {

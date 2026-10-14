@@ -60,4 +60,7 @@ public:
     // Property utilities
     static bool SetObjectProperty(UObject* Object, const FString& PropertyName, 
                                  const TSharedPtr<FJsonValue>& Value, FString& OutErrorMessage);
+
+    // 可靠保存：先走 UEditorAssetLibrary，AssetRegistry 未就绪等场景回退 UPackage::SavePackage 直存
+    static bool SaveLoadedAssetReliable(UObject* Asset, FString& OutError);
 }; 

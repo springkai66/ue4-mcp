@@ -323,10 +323,11 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCreateUMGWidgetBlueprint(co
 		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Widget Blueprint compilation failed"));
 	}
 	// 保存到磁盘；没有这一步后续 LoadAsset 全部失败。
-	if (!UEditorAssetLibrary::SaveLoadedAsset(WidgetBlueprint, false))
-	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Widget Blueprint created but save failed"));
-	}
+	FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(WidgetBlueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Widget Blueprint created but save failed"), *MCPAssetSaveError));
+                }
 
 	// Create success response
 	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
@@ -425,10 +426,11 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddTextBlockToWidget(const 
 		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Text Block added but Blueprint compilation failed"));
 	}
 	// 保存到磁盘；否则后续按路径加载会失败。
-	if (!UEditorAssetLibrary::SaveLoadedAsset(WidgetBlueprint, false))
-	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Text Block added but save failed"));
-	}
+	FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(WidgetBlueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Text Block added but save failed"), *MCPAssetSaveError));
+                }
 
 	// Create success response
 	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
@@ -573,10 +575,11 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddButtonToWidget(const TSh
     {
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Button added but Blueprint compilation failed"));
     }
-    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Button added but save failed"));
-    }
+    FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Button added but save failed"), *MCPAssetSaveError));
+                }
     TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
     Result->SetStringField(TEXT("widget_name"), WidgetName);
     Result->SetBoolField(TEXT("success"), true);
@@ -651,10 +654,11 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleBindWidgetEvent(const TShar
     {
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Widget event added but Blueprint compilation failed"));
     }
-    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Widget event added but save failed"));
-    }
+    FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Widget event added but save failed"), *MCPAssetSaveError));
+                }
     TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
     Result->SetStringField(TEXT("event_name"), EventName);
     Result->SetBoolField(TEXT("success"), true);
@@ -736,10 +740,11 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
     {
         return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Text binding added but Blueprint compilation failed"));
     }
-    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
-    {
-        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Text binding added but save failed"));
-    }
+    FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(Blueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Text binding added but save failed"), *MCPAssetSaveError));
+                }
     TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
     Result->SetStringField(TEXT("binding_name"), BindingName);
     Result->SetBoolField(TEXT("success"), true);
@@ -828,10 +833,11 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddImageToWidget(const TSha
 	{
 		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Image added but Blueprint compilation failed"));
 	}
-	if (!UEditorAssetLibrary::SaveLoadedAsset(WidgetBlueprint, false))
-	{
-		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Image added but save failed"));
-	}
+	FString MCPAssetSaveError;
+                if (!FUnrealMCPCommonUtils::SaveLoadedAssetReliable(WidgetBlueprint, MCPAssetSaveError))
+                {
+                    return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("%s: %s"), TEXT("Image added but save failed"), *MCPAssetSaveError));
+                }
 
 	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
 	ResultObj->SetStringField(TEXT("widget_name"), WidgetName);
