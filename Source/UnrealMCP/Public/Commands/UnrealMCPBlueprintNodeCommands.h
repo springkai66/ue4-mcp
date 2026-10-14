@@ -31,4 +31,8 @@ private:
     TSharedPtr<FJsonObject> HandleAddBlueprintCastNode(const TSharedPtr<FJsonObject>& Params);
     // 新增：在指定类（如 Cast 结果）上读取成员变量或组件，解决只能取 Self 成员的限制。
     TSharedPtr<FJsonObject> HandleAddBlueprintExternalMemberGetNode(const TSharedPtr<FJsonObject>& Params);
+    // 读取节点详情与全部连线（含引脚默认值）。
+    TSharedPtr<FJsonObject> HandleGetBlueprintNodeDetails(const TSharedPtr<FJsonObject>& Params);
+    // 删除指定节点并断开连线，保护 BeginPlay 入口。
+    TSharedPtr<FJsonObject> HandleDeleteBlueprintNode(const TSharedPtr<FJsonObject>& Params);
 }; 

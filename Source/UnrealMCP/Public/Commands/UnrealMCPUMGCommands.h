@@ -88,4 +88,6 @@ private:
      * @return JSON response with the binding details
      */
     TSharedPtr<FJsonObject> HandleSetTextBlockBinding(const TSharedPtr<FJsonObject>& Params);
+    // 新增：向根 Canvas 添加/更新 Image 控件，支持位置尺寸与 bHidden 占位。
+    TSharedPtr<FJsonObject> HandleAddImageToWidget(const TSharedPtr<FJsonObject>& Params);
 }; 

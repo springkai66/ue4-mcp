@@ -14,6 +14,7 @@
 #include "WidgetBlueprintEditor.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanel.h"
+#include "Components/Image.h"
 #include "Components/CanvasPanelSlot.h"
 #include "JsonObjectConverter.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -157,6 +158,10 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& Comm
     if (CommandName == TEXT("get_widget_tree"))
     {
         return HandleGetWidgetTree(Params);
+    }
+    if (CommandName == TEXT("add_image_to_widget"))
+    {
+        return HandleAddImageToWidget(Params);
     }
     if (CommandName == TEXT("add_widget_to_widget"))
     {
@@ -739,4 +744,98 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetTextBlockBinding(const T
     Result->SetStringField(TEXT("binding_name"), BindingName);
     Result->SetBoolField(TEXT("success"), true);
     return Result;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddImageToWidget(const TSharedPtr<FJsonObject>& Params)
+{
+	FString BlueprintName;
+	if (!TryGetStringFieldAlias(Params, TEXT("blueprint_name"), TEXT("widget_name"), BlueprintName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+	}
+
+	FString WidgetName;
+	if (!TryGetStringFieldAlias(Params, TEXT("image_name"), TEXT("widget_name"), WidgetName))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'image_name' parameter"));
+	}
+
+	UWidgetBlueprint* WidgetBlueprint = FindWidgetBlueprintByPathOrName(BlueprintName);
+	if (!WidgetBlueprint)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Widget Blueprint '%s' not found"), *BlueprintName));
+	}
+
+	FVector2D Position(0.0f, 0.0f);
+	const TArray<TSharedPtr<FJsonValue>>* PosArray;
+	if (Params->TryGetArrayField(TEXT("position"), PosArray) && PosArray->Num() >= 2)
+	{
+		Position.X = (*PosArray)[0]->AsNumber();
+		Position.Y = (*PosArray)[1]->AsNumber();
+	}
+
+	if (!WidgetBlueprint->WidgetTree)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Widget tree unavailable"));
+	}
+	UImage* Image = nullptr;
+	UCanvasPanelSlot* ExistingSlot = nullptr;
+	if (UWidget* Existing = WidgetBlueprint->WidgetTree->FindWidget(FName(*WidgetName)))
+	{
+		// 已存在同名控件时改为更新槽位，支持调用方调整位置尺寸。
+		Image = Cast<UImage>(Existing);
+		ExistingSlot = Cast<UCanvasPanelSlot>(Existing->Slot);
+		if (!Image || !ExistingSlot)
+		{
+			return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Widget name already exists and is not an Image on canvas"));
+		}
+	}
+	if (!Image)
+	{
+		Image = WidgetBlueprint->WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), *WidgetName);
+		if (!Image)
+		{
+			return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to create Image widget"));
+		}
+	}
+
+	UCanvasPanel* RootCanvas = Cast<UCanvasPanel>(WidgetBlueprint->WidgetTree->RootWidget);
+	if (!RootCanvas)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Root Canvas Panel not found"));
+	}
+
+	UCanvasPanelSlot* PanelSlot = ExistingSlot;
+	if (!PanelSlot)
+	{
+		PanelSlot = RootCanvas->AddChildToCanvas(Image);
+		if (!PanelSlot)
+		{
+			return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to add Image to canvas"));
+		}
+	}
+	PanelSlot->SetPosition(Position);
+	PanelSlot->SetAutoSize(false);
+	PanelSlot->SetSize(GetOptionalSize(Params, FVector2D(64.0f, 64.0f)));
+	// 图标不拦截鼠标，避免挡住下方交互控件；bHidden 用于静态占位图，待策划配纹理后再改为可见。
+	Image->SetVisibility(Params->HasField(TEXT("bHidden")) && Params->GetBoolField(TEXT("bHidden"))
+		? ESlateVisibility::Hidden
+		: ESlateVisibility::HitTestInvisible);
+
+	WidgetBlueprint->MarkPackageDirty();
+	FKismetEditorUtilities::CompileBlueprint(WidgetBlueprint);
+	if (WidgetBlueprint->Status == BS_Error)
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Image added but Blueprint compilation failed"));
+	}
+	if (!UEditorAssetLibrary::SaveLoadedAsset(WidgetBlueprint, false))
+	{
+		return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Image added but save failed"));
+	}
+
+	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+	ResultObj->SetStringField(TEXT("widget_name"), WidgetName);
+	ResultObj->SetNumberField(TEXT("pos_x"), Position.X);
+	ResultObj->SetNumberField(TEXT("pos_y"), Position.Y);
+	return ResultObj;
 }

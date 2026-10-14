@@ -475,4 +475,57 @@ def register_umg_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
 
+    @mcp.tool()
+    def add_image_to_widget(
+        ctx: Context,
+        widget_name: str,
+        image_name: str,
+        position=None,
+        size=None,
+        bHidden: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Add an Image widget to a UMG Widget Blueprint's root canvas.
+        
+        Args:
+            widget_name: Name of the target Widget Blueprint
+            image_name: Name for the new Image widget (e.g. Image_GuildIcon)
+            position: [X, Y] position in the canvas (optional)
+            size: [Width, Height] of the image (optional, default [64, 64])
+            bHidden: Create the image hidden (for placeholder art configured later)
+            
+        Returns:
+            Dict containing the created image details
+        """
+        from unreal_mcp_server import get_unreal_connection, no_connection
+        
+        try:
+            params = {
+                "widget_name": widget_name,
+                "image_name": image_name,
+                "bHidden": bHidden,
+            }
+            if position:
+                params["position"] = list(position)
+            if size:
+                params["size"] = list(size)
+            
+            unreal = get_unreal_connection()
+            if not unreal:
+                return no_connection()
+            
+            logger.info(f"Adding image to widget: {params}")
+            response = unreal.send_command("add_image_to_widget", params)
+            
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+            
+            return response
+            
+        except Exception as e:
+            error_msg = f"Error adding image to widget: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
     logger.info("UMG tools registered successfully") 

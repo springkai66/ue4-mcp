@@ -73,6 +73,14 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleCommand(const FSt
     {
         return HandleAddBlueprintExternalMemberGetNode(Params);
     }
+    else if (CommandType == TEXT("get_blueprint_node_details"))
+    {
+        return HandleGetBlueprintNodeDetails(Params);
+    }
+    else if (CommandType == TEXT("delete_blueprint_node"))
+    {
+        return HandleDeleteBlueprintNode(Params);
+    }
     
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown blueprint node command: %s"), *CommandType));
 }
@@ -1176,5 +1184,154 @@ TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleAddBlueprintExter
     TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
     ResultObj->SetStringField(TEXT("node_id"), GetNode->NodeGuid.ToString());
     ResultObj->SetStringField(TEXT("member"), MemberProperty->GetName());
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleGetBlueprintNodeDetails(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+    }
+
+    FString NodeId;
+    if (!Params->TryGetStringField(TEXT("node_id"), NodeId))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'node_id' parameter"));
+    }
+
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+
+    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+    if (!EventGraph)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
+    }
+
+    UEdGraphNode* TargetNode = nullptr;
+    for (UEdGraphNode* Node : EventGraph->Nodes)
+    {
+        if (Node->NodeGuid.ToString() == NodeId)
+        {
+            TargetNode = Node;
+            break;
+        }
+    }
+    if (!TargetNode)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Node not found: %s"), *NodeId));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetStringField(TEXT("node_id"), TargetNode->NodeGuid.ToString());
+    // 节点标题便于外部识别节点用途。
+    ResultObj->SetStringField(TEXT("node_title"), TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString());
+    ResultObj->SetStringField(TEXT("node_class"), TargetNode->GetClass()->GetName());
+    ResultObj->SetNumberField(TEXT("pos_x"), TargetNode->NodePosX);
+    ResultObj->SetNumberField(TEXT("pos_y"), TargetNode->NodePosY);
+
+    // 输出引脚及连线；LinkedTo 只保留对端节点 ID，避免响应过大。
+    TArray<TSharedPtr<FJsonValue>> PinsArray;
+    for (const UEdGraphPin* Pin : TargetNode->Pins)
+    {
+        TSharedPtr<FJsonObject> PinObj = MakeShared<FJsonObject>();
+        PinObj->SetStringField(TEXT("pin"), Pin->PinName.ToString());
+        PinObj->SetStringField(TEXT("direction"), Pin->Direction == EGPD_Output ? TEXT("out") : TEXT("in"));
+        PinObj->SetStringField(TEXT("pin_type"), Pin->PinType.PinCategory.ToString());
+        // 未连接引脚的运行时行为由节点上序列化的默认值决定，必须一并输出。
+        if (!Pin->DefaultValue.IsEmpty())
+        {
+            PinObj->SetStringField(TEXT("default_value"), Pin->DefaultValue);
+        }
+        if (Pin->DefaultObject)
+        {
+            PinObj->SetStringField(TEXT("default_object"), Pin->DefaultObject->GetPathName());
+        }
+        TArray<TSharedPtr<FJsonValue>> LinkedArray;
+        for (const UEdGraphPin* LinkedPin : Pin->LinkedTo)
+        {
+            const UEdGraphNode* LinkedNode = LinkedPin ? LinkedPin->GetOwningNode() : nullptr;
+            if (LinkedNode)
+            {
+                TSharedPtr<FJsonObject> LinkedObj = MakeShared<FJsonObject>();
+                LinkedObj->SetStringField(TEXT("node_id"), LinkedNode->NodeGuid.ToString());
+                LinkedObj->SetStringField(TEXT("node_title"), LinkedNode->GetNodeTitle(ENodeTitleType::ListView).ToString());
+                LinkedObj->SetStringField(TEXT("pin"), LinkedPin->PinName.ToString());
+                LinkedArray.Add(MakeShared<FJsonValueObject>(LinkedObj));
+            }
+        }
+        PinObj->SetArrayField(TEXT("linked_to"), LinkedArray);
+        PinsArray.Add(MakeShared<FJsonValueObject>(PinObj));
+    }
+    ResultObj->SetArrayField(TEXT("pins"), PinsArray);
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPBlueprintNodeCommands::HandleDeleteBlueprintNode(const TSharedPtr<FJsonObject>& Params)
+{
+    FString BlueprintName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'blueprint_name' parameter"));
+    }
+
+    FString NodeId;
+    if (!Params->TryGetStringField(TEXT("node_id"), NodeId))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'node_id' parameter"));
+    }
+
+    UBlueprint* Blueprint = FUnrealMCPCommonUtils::FindBlueprint(BlueprintName);
+    if (!Blueprint)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Blueprint not found: %s"), *BlueprintName));
+    }
+
+    UEdGraph* EventGraph = FUnrealMCPCommonUtils::FindOrCreateEventGraph(Blueprint);
+    if (!EventGraph)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get event graph"));
+    }
+
+    UEdGraphNode* TargetNode = nullptr;
+    for (UEdGraphNode* Node : EventGraph->Nodes)
+    {
+        if (Node->NodeGuid.ToString() == NodeId)
+        {
+            TargetNode = Node;
+            break;
+        }
+    }
+    if (!TargetNode)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Node not found: %s"), *NodeId));
+    }
+
+    // 入口事件节点不允许删除，防止把图拆坏；其余节点与编辑器手动删除行为一致。
+    if (UK2Node_Event* EventNode = Cast<UK2Node_Event>(TargetNode))
+    {
+        if (EventNode->EventReference.GetMemberName() == TEXT("ReceiveBeginPlay"))
+        {
+            return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Refusing to delete the BeginPlay entry node"));
+        }
+    }
+
+    const FString DeletedTitle = TargetNode->GetNodeTitle(ENodeTitleType::ListView).ToString();
+    // RemoveNode 负责断开连线、从图中移除节点并处理 knot/comment 等清理。
+    FBlueprintEditorUtils::RemoveNode(Blueprint, TargetNode, true);
+    FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
+    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Blueprint node deleted but save failed"));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetStringField(TEXT("deleted_node_id"), NodeId);
+    ResultObj->SetStringField(TEXT("deleted_node_title"), DeletedTitle);
     return ResultObj;
 }

@@ -420,4 +420,91 @@ def register_blueprint_node_tools(mcp: FastMCP):
             logger.error(error_msg)
             return {"success": False, "message": error_msg}
     
+    @mcp.tool()
+    def get_blueprint_node_details(
+        ctx: Context,
+        blueprint_name: str,
+        node_id: str
+    ) -> Dict[str, Any]:
+        """
+        Read a node's details and all its pin connections in a Blueprint's event graph.
+        
+        Args:
+            blueprint_name: Name of the target Blueprint
+            node_id: Node GUID returned by find_blueprint_nodes or add tools
+            
+        Returns:
+            Node info (title, class, position) and each pin with linked_to entries
+            (node_id, node_title, pin) describing every connection
+        """
+        from unreal_mcp_server import get_unreal_connection, no_connection
+        
+        try:
+            params = {
+                "blueprint_name": blueprint_name,
+                "node_id": node_id
+            }
+            
+            unreal = get_unreal_connection()
+            if not unreal:
+                return no_connection()
+            
+            logger.info(f"Getting node details in blueprint '{blueprint_name}' node '{node_id}'")
+            response = unreal.send_command("get_blueprint_node_details", params)
+            
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+            
+            return response
+            
+        except Exception as e:
+            error_msg = f"Error getting node details: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
+    @mcp.tool()
+    def delete_blueprint_node(
+        ctx: Context,
+        blueprint_name: str,
+        node_id: str
+    ) -> Dict[str, Any]:
+        """
+        Delete a node from a Blueprint's event graph and disconnect all its pins.
+        
+        The BeginPlay entry node is protected and cannot be deleted.
+        
+        Args:
+            blueprint_name: Name of the target Blueprint
+            node_id: Node GUID of the node to delete
+            
+        Returns:
+            Confirmation with the deleted node's id and title
+        """
+        from unreal_mcp_server import get_unreal_connection, no_connection
+        
+        try:
+            params = {
+                "blueprint_name": blueprint_name,
+                "node_id": node_id
+            }
+            
+            unreal = get_unreal_connection()
+            if not unreal:
+                return no_connection()
+            
+            logger.info(f"Deleting node '{node_id}' in blueprint '{blueprint_name}'")
+            response = unreal.send_command("delete_blueprint_node", params)
+            
+            if not response:
+                logger.error("No response from Unreal Engine")
+                return {"success": False, "message": "No response from Unreal Engine"}
+            
+            return response
+            
+        except Exception as e:
+            error_msg = f"Error deleting node: {e}"
+            logger.error(error_msg)
+            return {"success": False, "message": error_msg}
+
     logger.info("Blueprint node tools registered successfully")
