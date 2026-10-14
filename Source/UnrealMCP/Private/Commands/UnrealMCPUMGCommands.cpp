@@ -162,6 +162,10 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleCommand(const FString& Comm
     {
         return HandleAddWidgetToWidget(Params);
     }
+    if (CommandName == TEXT("set_widget_layout"))
+    {
+        return HandleSetWidgetLayout(Params);
+    }
 	if (CommandName == TEXT("create_umg_widget_blueprint"))
 	{
 		return HandleCreateUMGWidgetBlueprint(Params);

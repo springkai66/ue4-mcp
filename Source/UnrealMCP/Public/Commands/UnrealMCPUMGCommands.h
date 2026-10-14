@@ -29,6 +29,7 @@ private:
     TSharedPtr<FJsonObject> HandleListWidgetBlueprints(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleGetWidgetTree(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleAddWidgetToWidget(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleSetWidgetLayout(const TSharedPtr<FJsonObject>& Params);
 
     /**
      * Create a new UMG Widget Blueprint

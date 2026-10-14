@@ -27,6 +27,7 @@
 #include "UObject/UObjectHash.h"
 #include "UObject/UnrealType.h"
 #include "WidgetBlueprint.h"
+#include "Fonts/SlateFontInfo.h"
 
 namespace
 {
@@ -402,6 +403,28 @@ namespace
             if (Value->Type != EJson::String) { Why = TEXT("Text property requires a string"); return false; }
             return true;
         }
+        // FSlateFontInfo 含字体对象引用，整体写入被拒绝；这里只放行
+        // Font.Size 子字段，通过临时对象按结构体成员写入，避免引用属性。
+        if (FStructProperty* FontStruct = CastField<FStructProperty>(Property))
+        {
+            if (FontStruct->Struct->GetFName() == TEXT("SlateFontInfo")
+                && Name == TEXT("Font") && Value.IsValid() && Value->Type == EJson::Object)
+            {
+                const TSharedPtr<FJsonObject>* FontObject = nullptr;
+                double FontSize = 0;
+                const TSharedPtr<FJsonObject> FontJson = Value->AsObject();
+                if (FontJson.IsValid()
+                    && FontJson->TryGetObjectField(TEXT("Size"), FontObject)
+                    && (*FontObject)->TryGetNumberField(TEXT("value"), FontSize)
+                    && FontSize >= 1 && FontSize <= 1000 && FontSize == FMath::FloorToDouble(FontSize)
+                    && (*FontObject)->Values.Num() == 1)
+                {
+                    return true;
+                }
+                Why = TEXT("Font object supports only Size with a single numeric value");
+                return false;
+            }
+        }
         bool bSupported = Property->IsA<FBoolProperty>() || Property->IsA<FStrProperty>();
         bSupported = bSupported || Property->IsA<FIntProperty>() || Property->IsA<FFloatProperty>();
         bSupported = bSupported || Property->IsA<FByteProperty>() || Property->IsA<FEnumProperty>();
@@ -469,6 +492,29 @@ namespace
         {
             Text->SetPropertyValue_InContainer(Widget, FText::FromString(Value->AsString()));
             return true;
+        }
+        // Font 只放行 Size 子字段：结构体成员直写，不触碰字体对象引用。
+        if (Name == TEXT("Font") && Value.IsValid() && Value->Type == EJson::Object)
+        {
+            if (FStructProperty* FontStruct = FindFProperty<FStructProperty>(Widget->GetClass(), TEXT("Font")))
+            {
+                if (FontStruct->Struct->GetFName() == TEXT("SlateFontInfo"))
+                {
+                    FSlateFontInfo* Font = FontStruct->ContainerPtrToValuePtr<FSlateFontInfo>(Widget);
+                    const TSharedPtr<FJsonObject>* FontObject = nullptr;
+                    double FontSize = 0;
+                    const TSharedPtr<FJsonObject> FontJson = Value->AsObject();
+                    if (FontJson.IsValid()
+                        && FontJson->TryGetObjectField(TEXT("Size"), FontObject)
+                        && (*FontObject)->TryGetNumberField(TEXT("value"), FontSize))
+                    {
+                        Font->Size = static_cast<int32>(FontSize);
+                        return true;
+                    }
+                }
+            }
+            Why = TEXT("Font object supports only Size with a single numeric value");
+            return false;
         }
         return FUnrealMCPCommonUtils::SetObjectProperty(Widget, Name, Value, Why);
     }
@@ -795,6 +841,53 @@ TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleAddWidgetToWidget(const TSh
     Data->SetStringField(TEXT("parent_name"), Parent->GetName());
     Data->SetObjectField(TEXT("layout"), SlotJson(NewWidget.Get()));
     Data->SetBoolField(TEXT("created_root"), bCreateRoot);
+    Data->SetBoolField(TEXT("compiled"), true);
+    Data->SetBoolField(TEXT("saved"), true);
+    return FUnrealMCPCommonUtils::CreateSuccessResponse(Data);
+}
+
+TSharedPtr<FJsonObject> FUnrealMCPUMGCommands::HandleSetWidgetLayout(const TSharedPtr<FJsonObject>& Params)
+{
+    if (!Params.IsValid()) { return LayoutError(TEXT("Parameters must be an object")); }
+    FString BlueprintName, WidgetName;
+    if (!Params->TryGetStringField(TEXT("blueprint_name"), BlueprintName) || BlueprintName.IsEmpty()) { return LayoutError(TEXT("blueprint_name is required")); }
+    if (!Params->TryGetStringField(TEXT("widget_name"), WidgetName) || WidgetName.IsEmpty()) { return LayoutError(TEXT("widget_name is required")); }
+    const TSharedPtr<FJsonObject>* LayoutObject = nullptr;
+    if (!Params->TryGetObjectField(TEXT("layout"), LayoutObject)) { return LayoutError(TEXT("layout must be an object")); }
+
+    UWidgetBlueprint* Blueprint = FindLayoutWidgetBlueprint(BlueprintName);
+    if (!Blueprint) { return LayoutError(TEXT("Widget Blueprint not found; use a full /Game path for ambiguous names")); }
+    UWidgetTree* Tree = Blueprint->WidgetTree;
+    if (!Tree) { return LayoutError(TEXT("Widget tree unavailable")); }
+    if (Blueprint->Status == BS_Error) { return LayoutError(TEXT("Host Blueprint already has compilation errors")); }
+
+    UWidget* Target = Tree->FindWidget(FName(*WidgetName));
+    if (!Target) { return LayoutError(TEXT("Widget not found in the host tree")); }
+    UPanelSlot* Slot = Target->Slot;
+    if (!Slot) { return LayoutError(TEXT("Widget has no slot (it may be the root)")); }
+    const ELayoutKind Kind = LayoutKind(Slot->Parent);
+    if (Kind == ELayoutKind::Unsupported) { return LayoutError(TEXT("Unsupported parent panel type")); }
+
+    FLayout Layout;
+    FString Why;
+    if (!ParseLayout(*LayoutObject, Kind, Layout, Why)) { return LayoutError(Why); }
+    if (!ApplyLayout(Slot, Layout, *LayoutObject)) { return LayoutError(TEXT("Parent returned an unsupported slot type")); }
+
+    FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
+    FKismetEditorUtilities::CompileBlueprint(Blueprint);
+    if (Blueprint->Status == BS_Error) { return LayoutError(TEXT("Widget Blueprint compilation failed; no save was attempted")); }
+    if (!UEditorAssetLibrary::SaveLoadedAsset(Blueprint, false))
+    {
+        auto Response = LayoutError(TEXT("Layout was applied and compiled, but saving failed; changes remain in memory"));
+        Response->SetStringField(TEXT("blueprint_path"), Blueprint->GetPathName());
+        Response->SetStringField(TEXT("widget_name"), WidgetName);
+        Response->SetBoolField(TEXT("saved"), false);
+        return Response;
+    }
+    auto Data = MakeShared<FJsonObject>();
+    Data->SetStringField(TEXT("blueprint_path"), Blueprint->GetPathName());
+    Data->SetStringField(TEXT("widget_name"), WidgetName);
+    Data->SetObjectField(TEXT("layout"), SlotJson(Target));
     Data->SetBoolField(TEXT("compiled"), true);
     Data->SetBoolField(TEXT("saved"), true);
     return FUnrealMCPCommonUtils::CreateSuccessResponse(Data);
