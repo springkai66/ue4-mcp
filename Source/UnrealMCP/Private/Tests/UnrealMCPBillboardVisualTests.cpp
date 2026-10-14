@@ -9,9 +9,11 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonReader.h"
 
-// 真实编辑器视觉验证：PIE 中把冠军广告牌加入视口并截图落盘。
+// 真实工程视觉验证：PIE 中把冠军广告牌加入视口并截图落盘。
+// 依赖目标工程的 UI_GVGChampionBoard 资产，隔离宿主没有该资产；
+// 用 "UnrealMCP.Visual" 前缀单独运行，不进入默认 UnrealMCP 集合。
 // 截图对比在测试外部完成；用例断言命令链路与渲染前置条件成立。
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMCPUMGBillboardVisualTest, "UnrealMCP.UMG.BillboardVisualPIE",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMCPUMGBillboardVisualTest, "UnrealMCPVisual.BillboardPIE",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 namespace UnrealMCPVisualHelpers
@@ -39,7 +41,7 @@ bool FMCPUMGBillboardVisualTest::RunTest(const FString& Parameters)
     {
         return false;
     }
-    // 蓝图已存在于 Hotta 工程；视觉验证只消费它，不创建不修改。
+    // 蓝图已存在于目标工程；视觉验证只消费它，不创建不修改。
     const TCHAR* BlueprintPath = TEXT("/Game/Resources/CoreBlueprints/UI/GVG/UI_GVGChampionBoard");
     auto TreeParams = MakeShared<FJsonObject>();
     TSharedPtr<FJsonObject> Tree = Parse(Bridge->ExecuteCommand(TEXT("get_widget_tree"), TreeParams));
