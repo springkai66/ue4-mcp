@@ -32,6 +32,10 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleCommand(const FString& 
     {
         return HandleReadRow(Params);
     }
+    else if (CommandType == TEXT("set_asset_property"))
+    {
+        return HandleSetAssetProperty(Params);
+    }
 
     return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown project command: %s"), *CommandType));
 }
@@ -289,3 +293,51 @@ TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleReadRow(const TSharedPt
     ResultObj->SetObjectField(TEXT("row_data"), RowJson);
     return ResultObj;
 } 
+TSharedPtr<FJsonObject> FUnrealMCPProjectCommands::HandleSetAssetProperty(const TSharedPtr<FJsonObject>& Params)
+{
+    // 参数：asset_path（完整包路径，如 /Game/.../DA_GVG）、property_name、property_value。
+    FString AssetPath;
+    if (!Params->TryGetStringField(TEXT("asset_path"), AssetPath))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'asset_path' parameter"));
+    }
+    FString PropertyName;
+    if (!Params->TryGetStringField(TEXT("property_name"), PropertyName))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'property_name' parameter"));
+    }
+    if (!Params->HasField(TEXT("property_value")))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'property_value' parameter"));
+    }
+
+    UObject* Asset = LoadObject<UObject>(nullptr, *AssetPath);
+    if (!Asset)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Asset not found: %s"), *AssetPath));
+    }
+
+    const TSharedPtr<FJsonValue> JsonValue = Params->Values.FindRef(TEXT("property_value"));
+    FString ErrorMessage;
+    if (!FUnrealMCPCommonUtils::SetObjectProperty(Asset, PropertyName, JsonValue, ErrorMessage))
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Failed to set property: %s"), *ErrorMessage));
+    }
+
+    Asset->MarkPackageDirty();
+    // 沿用 add_row 的直接保存方式：UEditorAssetLibrary 对此类资产不可靠。
+    UPackage* AssetPackage = Asset->GetOutermost();
+    const FString AssetFilename = FPackageName::LongPackageNameToFilename(AssetPackage->GetName(), FPackageName::GetAssetPackageExtension());
+    const bool bSaved = UPackage::SavePackage(AssetPackage, Asset, RF_Public | RF_Standalone,
+        *AssetFilename, GError, nullptr, false, true, SAVE_NoError);
+    if (!bSaved)
+    {
+        return FUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Property set but failed to save asset: %s"), *AssetPath));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetBoolField(TEXT("success"), true);
+    ResultObj->SetStringField(TEXT("asset_path"), AssetPath);
+    ResultObj->SetStringField(TEXT("property"), PropertyName);
+    return ResultObj;
+}

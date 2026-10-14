@@ -27,6 +27,7 @@
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Misc/PackageName.h"
+#include "UObject/UnrealType.h"
 
 // JSON Utilities
 TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateErrorResponse(const FString& Message)
@@ -1034,9 +1035,84 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
             UE_LOG(LogTemp, Display, TEXT("Setting Rotator property %s to (P%f, Y%f, R%f)"), *PropertyName, Numbers[0], Numbers[1], Numbers[2]);
             return true;
         }
+        // FIntPoint（如 WidgetComponent 的 DrawSize）：与 FVector2D 同形态的整数坐标。
+        // FIntPoint 无 TBaseStructure 特化（仅 IMPLEMENT_STRUCT 注册），按结构体名匹配。
+        if (StructName == TEXT("IntPoint"))
+        {
+            if (Numbers.Num() < 2)
+            {
+                OutErrorMessage = FString::Printf(TEXT("IntPoint property %s needs 2 numbers"), *PropertyName);
+                return false;
+            }
+            *static_cast<FIntPoint*>(PropertyAddr) = FIntPoint(
+                static_cast<int32>(Numbers[0]), static_cast<int32>(Numbers[1]));
+            UE_LOG(LogTemp, Display, TEXT("Setting IntPoint property %s to (%d, %d)"),
+                *PropertyName, static_cast<int32>(Numbers[0]), static_cast<int32>(Numbers[1]));
+            return true;
+        }
 
         OutErrorMessage = FString::Printf(TEXT("Unsupported struct type: %s for property %s"), *StructName, *PropertyName);
         return false;
+    }
+    else if (FSetProperty* SetProp = CastField<FSetProperty>(Property))
+    {
+        // TSet 属性：接受 JSON 数组；元素支持字符串（FName）或数字（枚举整值）。
+        if (Value->Type != EJson::Array)
+        {
+            OutErrorMessage = FString::Printf(TEXT("Set property %s needs a JSON array"), *PropertyName);
+            return false;
+        }
+        FScriptSetHelper SetHelper(SetProp, PropertyAddr);
+        SetHelper.EmptyElements();
+        const TArray<TSharedPtr<FJsonValue>>& Elements = Value->AsArray();
+        for (const TSharedPtr<FJsonValue>& Element : Elements)
+        {
+            if (!Element.IsValid())
+            {
+                OutErrorMessage = TEXT("Set array contains invalid element");
+                return false;
+            }
+            // 逐元素写入再入集合；不支持元素类型时给出明确错误。
+            if (CastField<FNameProperty>(SetHelper.GetElementProperty()))
+            {
+                if (Element->Type != EJson::String)
+                {
+                    OutErrorMessage = TEXT("FName set elements must be strings");
+                    return false;
+                }
+                const FName Entry(*Element->AsString());
+                SetHelper.AddElement(&Entry);
+            }
+            else if (CastField<FIntProperty>(SetHelper.GetElementProperty()))
+            {
+                if (Element->Type != EJson::Number)
+                {
+                    OutErrorMessage = TEXT("Integer set elements must be numbers");
+                    return false;
+                }
+                const int32 Entry = static_cast<int32>(Element->AsNumber());
+                SetHelper.AddElement(&Entry);
+            }
+            else if (CastField<FStrProperty>(SetHelper.GetElementProperty()))
+            {
+                if (Element->Type != EJson::String)
+                {
+                    OutErrorMessage = TEXT("String set elements must be strings");
+                    return false;
+                }
+                const FString Entry = Element->AsString();
+                SetHelper.AddElement(&Entry);
+            }
+            else
+            {
+                OutErrorMessage = FString::Printf(TEXT("Unsupported set element type: %s for property %s"),
+                    *SetHelper.GetElementProperty()->GetClass()->GetName(), *PropertyName);
+                return false;
+            }
+        }
+        SetHelper.Rehash();
+        UE_LOG(LogTemp, Display, TEXT("Setting set property %s with %d elements"), *PropertyName, Elements.Num());
+        return true;
     }
 
     OutErrorMessage = FString::Printf(TEXT("Unsupported property type: %s for property %s"),
