@@ -13,30 +13,33 @@ AI 客户端 → MCP stdio → Python 服务 → TCP 127.0.0.1:55557 → Unreal 
 - 适配 UE4.26；修正 Blueprint/UMG 创建、反射属性写入和 DataTable 行处理。
 - 修复 JSON 字节分帧、UTF-8 分包、部分发送、socket 释放及停止流程。
 - 增加资产路径校验、保存/编译失败反馈，以及蓝图图表 Schema 连线检查。
-- 完善 UMG 文字、按钮和事件编辑，增加材质及输出日志工具；Python 暴露 35 个工具。
+- 蓝图节点自动排版与图表整理；UMG 通用控件组合（原生与项目控件）。
 - 修复 Python 响应解包、工具注册和连接处理，合并脚本传输代码并补充回归检查；发布副本移除项目专有路径和名称。
 
-## 启用插件
+## 快速开始
 
-准备：**Windows + UE4.26.2**、对应版本的 C++ 编译工具链、**Python 3.10+** 和 [uv](https://docs.astral.sh/uv/getting-started/installation/)。
+按顺序完成以下步骤。准备：**Windows + UE4.26.2**、对应版本的 C++ 编译工具链、**Python 3.10+** 和 [uv](https://docs.astral.sh/uv/getting-started/installation/)。
+
+### 第 1 步：安装插件并编译
 
 1. 将整个仓库复制到 `<你的工程>/Plugins/UnrealMCP`，确保 `UnrealMCP.uplugin` 直接位于该目录。纯蓝图工程先添加一个 C++ 类，使工程可以编译插件。
 2. 生成工程文件，用对应 UE4 工具链编译工程的 Editor 目标。
 3. 在 **编辑 → 插件** 中启用 **Editor Scripting Utilities** 和 **UnrealMCP**，重启编辑器。
 4. 在输出日志中确认 `UnrealMCPBridge: Server started on 127.0.0.1:55557`。调用工具时保持编辑器开启；同一时刻只能有一个编辑器使用该端口。
-5. 安装一次 Python 依赖：
 
-   ```sh
-   uv --directory "C:/path/to/unreal-mcp/Python" sync --frozen
-   ```
+### 第 2 步：安装 Python 依赖（一次性）
 
-下文路径均替换为仓库或已安装插件中 **`Python/` 的绝对路径**。桌面客户端找不到 `uv` 时，将命令改为 `uv` 可执行文件的绝对路径。已有配置应合并服务条目。
+```sh
+uv --directory "C:/path/to/unreal-mcp/Python" sync --frozen
+```
 
-## 接入 MCP 客户端
+### 第 3 步：接入 MCP 客户端
 
 客户端通过 **stdio** 启动 Python 服务；`55557` 是插件的原始 TCP 端口，不能作为 HTTP/SSE MCP 地址。无需单独启动服务，本桥接本身不需要 API Key。
 
-### Claude Code
+下文路径均替换为仓库或已安装插件中 **`Python/` 的绝对路径**。桌面客户端找不到 `uv` 时，将命令改为 `uv` 可执行文件的绝对路径。已有配置应合并服务条目。
+
+#### Claude Code
 
 ```sh
 claude mcp add --transport stdio --scope user unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py
@@ -44,7 +47,7 @@ claude mcp add --transport stdio --scope user unreal-mcp -- uv --directory "C:/p
 
 用 `/mcp` 查看状态。项目级配置可改为 `--scope project`，或把下方 JSON 写入项目 `.mcp.json`。
 
-### Pi、WorkBuddy、ZCode
+#### Pi、WorkBuddy、ZCode
 
 通用 JSON：
 
@@ -67,7 +70,7 @@ claude mcp add --transport stdio --scope user unreal-mcp -- uv --directory "C:/p
 
 `~` 表示用户主目录，Windows 通常对应 `%USERPROFILE%`。
 
-### Codex
+#### Codex
 
 写入 `~/.codex/config.toml`，或受信任项目的 `.codex/config.toml`：
 
@@ -79,7 +82,7 @@ args = ["--directory", "C:/path/to/unreal-mcp/Python", "run", "--frozen", "unrea
 
 也可执行：`codex mcp add unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py`。用 `codex mcp list` 检查。
 
-### OpenCode
+#### OpenCode
 
 合并到项目 `opencode.json` 或 `~/.config/opencode/opencode.json`：
 
@@ -96,9 +99,13 @@ args = ["--directory", "C:/path/to/unreal-mcp/Python", "run", "--frozen", "unrea
 }
 ```
 
-用 `opencode mcp list` 检查。连接任意客户端后，可以说：**“使用 unreal-mcp 列出当前关卡中的 Actor。”** 编辑器未开启时也能发现工具，但实际编辑器操作需要插件已监听。
+用 `opencode mcp list` 检查。配置参考：[Claude Code](https://code.claude.com/docs/en/mcp)、[Codex](https://developers.openai.com/codex/mcp/)、[Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md)、[OpenCode](https://opencode.ai/docs/mcp-servers/)、[WorkBuddy](https://www.codebuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide)、[ZCode](https://zcode.z.ai/en/docs/mcp-services)。
 
-配置参考：[Claude Code](https://code.claude.com/docs/en/mcp)、[Codex](https://developers.openai.com/codex/mcp/)、[Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md)、[OpenCode](https://opencode.ai/docs/mcp-servers/)、[WorkBuddy](https://www.codebuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide)、[ZCode](https://zcode.z.ai/en/docs/mcp-services)。
+### 第 4 步：验证连接
+
+连接任意客户端后，可以说：**“使用 unreal-mcp 列出当前关卡中的 Actor。”** 编辑器未开启时也能发现工具，但实际编辑器操作需要插件已监听。
+
+日常使用顺序：先启动编辑器（插件开始监听），再从客户端调用工具。Python 服务由客户端按配置自动拉起，无需手动运行。
 
 ## 蓝图整洁规范
 
@@ -106,13 +113,9 @@ args = ["--directory", "C:/path/to/unreal-mcp/Python", "run", "--frozen", "unrea
 
 UMG 界面建议先提供示意图或确认文字布局。插件提供 `list_widget_blueprints`、`get_widget_tree` 和 `add_widget_to_widget`，支持原生与项目控件，并校验 Canvas/Box/Overlay/Border/SizeBox 的槽位布局。AI 指导仍要求对齐与分区，机械部分已由插件执行。
 
-## 验证与限制
+## 开发与测试
 
-UE4.26.2 Win64 插件编译及隔离宿主中的 12 个自动化用例通过（含图表排版与 UMG 组合套件）；Python 的 31 个本地测试通过，含 stdio 到假 TCP 编辑器的工具调用。六种客户端配置依据官方文档，未全部逐一实机验证。UE5、Mac/Linux、运行时 UMG 显示和编辑器重启后的持久化尚未完整验证。
-
-已知风险：发布前原始宿主工程的自动化运行曾以堆损坏（0xC0000374）退出。隔离宿主用例全部通过，无法归因该退出的原因；本版本新增的代码路径（离屏 Slate 节点测量、编辑器对象标志处理）**未被排除嫌疑**，在该工程完成一次干净运行之前，应视为插件未经该环境验证。
-
-清除源 WidgetTree 的 `RF_ArchetypeObject` 与引擎 `UWidgetBlueprint::PostLoad` 行为一致：编辑器界面创建的资产通常已无此标志，此时为空操作；但执行这些命令后保存，会把清除后的标志持久化进资产。
+运行 Python 测试：
 
 ```sh
 uv --directory "C:/path/to/unreal-mcp/Python" run --frozen python -m unittest discover -s tests

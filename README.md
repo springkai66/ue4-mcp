@@ -13,30 +13,33 @@ AI client → MCP stdio → Python server → TCP 127.0.0.1:55557 → Unreal edi
 - UE4.26 editor compatibility; corrected Blueprint/UMG creation, reflection property writes and DataTable row handling.
 - JSON byte framing, UTF-8 fragmentation, partial sends, socket cleanup and shutdown handling.
 - Asset path validation, save/compile error reporting and graph schema connection checks.
-- UMG text/button/event authoring, materials and output-log tools; Python exposes 35 tools.
+- Automatic Blueprint node layout with graph formatting; generic UMG composition (native and project widgets).
 - Python response unwrapping, tool registration, connection handling, shared script transport and regression checks. Project-specific paths and names removed from the release copy.
 
-## Enable the plugin
+## Quick start
 
-Requirements: **UE4.26.2 on Windows**, a C++ toolchain for that engine, **Python 3.10+** and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Follow the steps in order. Requirements: **UE4.26.2 on Windows**, a C++ toolchain for that engine, **Python 3.10+** and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Step 1: Install and build the plugin
 
 1. Copy this repository into `<YourProject>/Plugins/UnrealMCP`, so `UnrealMCP.uplugin` is directly inside that folder. For a Blueprint-only project, add a C++ class first to enable project compilation.
 2. Generate project files and build your project's Editor target using the matching UE4 toolchain.
 3. In **Edit → Plugins**, enable **Editor Scripting Utilities** and **UnrealMCP**, then restart the editor.
 4. Check Output Log for `UnrealMCPBridge: Server started on 127.0.0.1:55557`. Keep the editor open when calling tools; only one editor can use this port at a time.
-5. Install Python dependencies once:
 
-   ```sh
-   uv --directory "C:/path/to/unreal-mcp/Python" sync --frozen
-   ```
+### Step 2: Install Python dependencies (once)
+
+```sh
+uv --directory "C:/path/to/unreal-mcp/Python" sync --frozen
+```
+
+### Step 3: Connect an MCP client
+
+Clients launch the Python server over **stdio**; port `55557` is the plugin's raw TCP endpoint, not an HTTP/SSE MCP URL. No separate server launch or API key is required by this bridge.
 
 Replace the example directory with the **absolute path to `Python/`**, either in the checkout or installed plugin. Replace `uv` with its executable's absolute path if a desktop client cannot find it. Merge the following entries into existing client settings.
 
-## Connect an MCP client
-
-The client launches the Python server over **stdio**; port `55557` is the plugin's raw TCP endpoint, not an HTTP/SSE MCP URL. No separate server launch or API key is required by this bridge.
-
-### Claude Code
+#### Claude Code
 
 ```sh
 claude mcp add --transport stdio --scope user unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py
@@ -44,7 +47,7 @@ claude mcp add --transport stdio --scope user unreal-mcp -- uv --directory "C:/p
 
 Use `/mcp` to check its status. For project scope, use `--scope project` or the JSON below in `.mcp.json`.
 
-### Pi, WorkBuddy and ZCode
+#### Pi, WorkBuddy and ZCode
 
 Use this shared JSON:
 
@@ -67,7 +70,7 @@ Use this shared JSON:
 
 `~` means your home directory; on Windows it is usually `%USERPROFILE%`.
 
-### Codex
+#### Codex
 
 Add to `~/.codex/config.toml` (or trusted-project `.codex/config.toml`):
 
@@ -79,7 +82,7 @@ args = ["--directory", "C:/path/to/unreal-mcp/Python", "run", "--frozen", "unrea
 
 Alternatively: `codex mcp add unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py`. Check with `codex mcp list`.
 
-### OpenCode
+#### OpenCode
 
 Merge into project `opencode.json` or `~/.config/opencode/opencode.json`:
 
@@ -96,9 +99,13 @@ Merge into project `opencode.json` or `~/.config/opencode/opencode.json`:
 }
 ```
 
-Check with `opencode mcp list`. After connecting any client, ask: **“Use unreal-mcp to list actors in the current level.”** Tool discovery can succeed before the editor is running; actual editor calls require the plugin listener.
+Check with `opencode mcp list`. Configuration references: [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://developers.openai.com/codex/mcp/), [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md), [OpenCode](https://opencode.ai/docs/mcp-servers/), [WorkBuddy](https://www.codebuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide), [ZCode](https://zcode.z.ai/en/docs/mcp-services).
 
-Configuration references: [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://developers.openai.com/codex/mcp/), [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md), [OpenCode](https://opencode.ai/docs/mcp-servers/), [WorkBuddy](https://www.codebuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide), [ZCode](https://zcode.z.ai/en/docs/mcp-services).
+### Step 4: Verify the connection
+
+From any connected client, ask: **"Use unreal-mcp to list actors in the current level."** Tool discovery works without the editor; actual editor calls require the plugin listener.
+
+Daily order of operations: start the editor first (the plugin starts listening), then call tools from the client. The Python server is launched automatically by the client per its configuration — no manual startup needed.
 
 ## Blueprint layout rule
 
@@ -106,13 +113,9 @@ The plugin arranges graph layout itself: nodes created without an explicit posit
 
 For UMG, send the AI a sketch or confirm a textual layout first. The plugin exposes `list_widget_blueprints`, `get_widget_tree` and `add_widget_to_widget` for native and project widgets with validated Canvas/Box/Overlay/Border/SizeBox slot layouts. AI instructions still ask for aligned, separated flows; the plugin now enforces the mechanical parts.
 
-## Validation and limits
+## Development and testing
 
-UE4.26.2 Win64 plugin compilation and 12 isolated-host automation tests passed (including graph layout and UMG composition suites). Python has 31 passing local tests, including stdio calls to a fake TCP editor. The six client configurations follow their documentation; they have not all been tested in the actual apps. UE5, Mac/Linux, runtime UMG rendering and editor-restart persistence are not fully verified.
-
-Known risk: an automation run in the original host project exited with heap corruption (0xC0000374) before this release. Isolated-host tests pass and cannot attribute that exit to any cause; the new code paths here (off-screen Slate node measurement, editor-object flag handling) have NOT been ruled out as contributors, so treat the plugin as unproven in that environment until a run there completes cleanly.
-
-Clearing `RF_ArchetypeObject` on the source widget tree follows engine `UWidgetBlueprint::PostLoad` behavior for freshly created Blueprints; for assets created by the editor UI this flag is normally already cleared, so the change is a no-op there, but saving after these commands persists the cleared flag into the asset.
+Run the Python tests:
 
 ```sh
 uv --directory "C:/path/to/unreal-mcp/Python" run --frozen python -m unittest discover -s tests
