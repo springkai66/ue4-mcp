@@ -23,38 +23,20 @@ An editor plugin plus MCP server for driving UE4.26 from an AI client: level and
 
 ## Quick start
 
-Follow the steps in order. Requirements: **UE4.26.2 on Windows**, a C++ toolchain for that engine, **Python 3.10+** and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Requirements: **UE4.26.2 on Windows**, a C++ toolchain for that engine, and [uv](https://docs.astral.sh/uv/getting-started/installation/). No manual Python setup: uv creates the environment from `uv.lock` the first time the client launches the server.
 
 ### Step 1: Install and build the plugin
 
 1. Copy this repository into `<YourProject>/Plugins/UnrealMCP`, so `UnrealMCP.uplugin` is directly inside that folder. For a Blueprint-only project, add a C++ class first to enable project compilation.
-2. Generate project files and build your project's Editor target using the matching UE4 toolchain.
+2. Generate project files and build your project's Editor target.
 3. In **Edit → Plugins**, enable **Editor Scripting Utilities** and **UnrealMCP**, then restart the editor.
-4. Check Output Log for `UnrealMCPBridge: Server started on 127.0.0.1:55557`. Keep the editor open when calling tools; only one editor can use this port at a time.
+4. Success means Output Log shows `UnrealMCPBridge: Server started on 127.0.0.1:55557`. Keep the editor open when calling tools; only one editor can hold the port at a time.
 
-### Step 2: Install Python dependencies (once)
+### Step 2: Connect an MCP client
 
-```sh
-uv --directory "C:/path/to/unreal-mcp/Python" sync --frozen
-```
+No manual server launch: the client starts the Python server over stdio (`55557` is the plugin's TCP port, not an HTTP/SSE URL; no API key needed).
 
-### Step 3: Connect an MCP client
-
-Clients launch the Python server over **stdio**; port `55557` is the plugin's raw TCP endpoint, not an HTTP/SSE MCP URL. No separate server launch or API key is required by this bridge.
-
-Replace the example directory with the **absolute path to `Python/`**, either in the checkout or installed plugin. Replace `uv` with its executable's absolute path if a desktop client cannot find it. Merge the following entries into existing client settings.
-
-#### Claude Code
-
-```sh
-claude mcp add --transport stdio --scope user unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py
-```
-
-Use `/mcp` to check its status. For project scope, use `--scope project` or the JSON below in `.mcp.json`.
-
-#### Pi, WorkBuddy and ZCode
-
-Use this shared JSON:
+Merge this entry into your client's config, replacing the path with the absolute path to `Python/`:
 
 ```json
 {
@@ -67,17 +49,20 @@ Use this shared JSON:
 }
 ```
 
-| Client | Where to add it |
+Where to put it:
+
+| Client | Location |
 | --- | --- |
-| **Pi** | `~/.pi/agent/mcp.json` or project `.pi/mcp.json`; check with `/mcp`. For desktop distributions, use their active MCP configuration directory. |
-| **WorkBuddy** (Tencent desktop) | Sidebar **Plugins → MCP Servers → Configure MCP** (Chinese labels: 插件 → MCP 服务器 → 配置 MCP). Save to `~/.workbuddy/mcp.json` or project `.workbuddy/mcp.json`. |
-| **ZCode** (Z.ai desktop) | **Settings → MCP Servers → New MCP Server → Full configuration**; select User/Workspace, paste JSON, add and enable. This is UI input; native `.zcode` files use `mcp.servers`. |
+| **Claude Code** | One command: `claude mcp add --scope user unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py`; check with `/mcp` |
+| **Pi** | `~/.pi/agent/mcp.json` (user) or project `.pi/mcp.json` |
+| **Codex** | `~/.codex/config.toml`, TOML shape below |
+| **OpenCode** | `opencode.json`, shape below |
+| **WorkBuddy** (Tencent desktop) | Sidebar **Plugins → MCP Servers → Configure MCP** (Chinese: 插件 → MCP 服务器 → 配置 MCP), i.e. `~/.workbuddy/mcp.json` or project `.workbuddy/mcp.json` |
+| **ZCode** (Z.ai desktop) | **Settings → MCP Servers → New MCP Server → Full configuration**, paste the JSON above |
 
-`~` means your home directory; on Windows it is usually `%USERPROFILE%`.
+Only two clients use a different shape:
 
-#### Codex
-
-Add to `~/.codex/config.toml` (or trusted-project `.codex/config.toml`):
+Codex (`~/.codex/config.toml`):
 
 ```toml
 [mcp_servers.unreal-mcp]
@@ -85,15 +70,10 @@ command = "uv"
 args = ["--directory", "C:/path/to/unreal-mcp/Python", "run", "--frozen", "unreal_mcp_server.py"]
 ```
 
-Alternatively: `codex mcp add unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py`. Check with `codex mcp list`.
-
-#### OpenCode
-
-Merge into project `opencode.json` or `~/.config/opencode/opencode.json`:
+OpenCode (`opencode.json`):
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "unreal-mcp": {
       "type": "local",
@@ -104,13 +84,11 @@ Merge into project `opencode.json` or `~/.config/opencode/opencode.json`:
 }
 ```
 
-Check with `opencode mcp list`. Configuration references: [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://developers.openai.com/codex/mcp/), [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md), [OpenCode](https://opencode.ai/docs/mcp-servers/), [WorkBuddy](https://www.codebuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide), [ZCode](https://zcode.z.ai/en/docs/mcp-services).
+`~` is your home directory (usually `%USERPROFILE%` on Windows).
 
-### Step 4: Verify the connection
+### Step 3: Verify
 
-From any connected client, ask: **"Use unreal-mcp to list actors in the current level."** Tool discovery works without the editor; actual editor calls require the plugin listener.
-
-Daily order of operations: start the editor first (the plugin starts listening), then call tools from the client. The Python server is launched automatically by the client per its configuration — no manual startup needed.
+Ask the client: **"Use unreal-mcp to list actors in the current level."** Tool discovery works without the editor; actual calls need the plugin listener. Daily flow: start the editor first, then call tools from the client.
 
 ## Blueprint layout rule
 

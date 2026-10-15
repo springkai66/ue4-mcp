@@ -23,38 +23,20 @@ AI 客户端 → MCP stdio → Python 服务 → TCP 127.0.0.1:55557 → Unreal 
 
 ## 快速开始
 
-按顺序完成以下步骤。准备：**Windows + UE4.26.2**、对应版本的 C++ 编译工具链、**Python 3.10+** 和 [uv](https://docs.astral.sh/uv/getting-started/installation/)。
+前置要求：**Windows + UE4.26.2**、对应版本的 C++ 编译工具链，以及 [uv](https://docs.astral.sh/uv/getting-started/installation/)。无需手动安装 Python 依赖：客户端首次启动服务时，uv 会按 `uv.lock` 自动创建环境。
 
 ### 第 1 步：安装插件并编译
 
 1. 将整个仓库复制到 `<你的工程>/Plugins/UnrealMCP`，确保 `UnrealMCP.uplugin` 直接位于该目录。纯蓝图工程先添加一个 C++ 类，使工程可以编译插件。
-2. 生成工程文件，用对应 UE4 工具链编译工程的 Editor 目标。
+2. 生成工程文件，编译工程的 Editor 目标。
 3. 在 **编辑 → 插件** 中启用 **Editor Scripting Utilities** 和 **UnrealMCP**，重启编辑器。
-4. 在输出日志中确认 `UnrealMCPBridge: Server started on 127.0.0.1:55557`。调用工具时保持编辑器开启；同一时刻只能有一个编辑器使用该端口。
+4. 输出日志出现 `UnrealMCPBridge: Server started on 127.0.0.1:55557` 即成功。调用工具时保持编辑器开启；同一时刻只能有一个编辑器占用该端口。
 
-### 第 2 步：安装 Python 依赖（一次性）
+### 第 2 步：接入 MCP 客户端
 
-```sh
-uv --directory "C:/path/to/unreal-mcp/Python" sync --frozen
-```
+无需手动启动服务：客户端通过 stdio 自动拉起 Python 服务（`55557` 是插件 TCP 端口，不能填成 HTTP/SSE 地址；本服务不需要 API Key）。
 
-### 第 3 步：接入 MCP 客户端
-
-客户端通过 **stdio** 启动 Python 服务；`55557` 是插件的原始 TCP 端口，不能作为 HTTP/SSE MCP 地址。无需单独启动服务，本桥接本身不需要 API Key。
-
-下文路径均替换为仓库或已安装插件中 **`Python/` 的绝对路径**。桌面客户端找不到 `uv` 时，将命令改为 `uv` 可执行文件的绝对路径。已有配置应合并服务条目。
-
-#### Claude Code
-
-```sh
-claude mcp add --transport stdio --scope user unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py
-```
-
-用 `/mcp` 查看状态。项目级配置可改为 `--scope project`，或把下方 JSON 写入项目 `.mcp.json`。
-
-#### Pi、WorkBuddy、ZCode
-
-通用 JSON：
+把下面的服务条目合并进客户端配置，`C:/path/to/unreal-mcp/Python` 换成 `Python/` 目录的绝对路径：
 
 ```json
 {
@@ -67,17 +49,20 @@ claude mcp add --transport stdio --scope user unreal-mcp -- uv --directory "C:/p
 }
 ```
 
-| 客户端 | 配置入口 |
+写入位置：
+
+| 客户端 | 配置位置 |
 | --- | --- |
-| **Pi** | 用户 `~/.pi/agent/mcp.json` 或项目 `.pi/mcp.json`；用 `/mcp` 查看状态。桌面发行版使用其实际生效的 MCP 配置目录。 |
-| **WorkBuddy**（腾讯桌面版） | 侧边栏 **插件 → MCP 服务器 → 配置 MCP**；保存到用户 `~/.workbuddy/mcp.json` 或项目 `.workbuddy/mcp.json`。 |
-| **ZCode**（Z.ai 桌面版） | **Settings → MCP Servers → New MCP Server → Full configuration**；选择 User/Workspace，粘贴 JSON，添加并启用。这是界面输入格式，原生 `.zcode` 文件使用 `mcp.servers`。 |
+| **Claude Code** | 一条命令即可：`claude mcp add --scope user unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py`，用 `/mcp` 查看状态 |
+| **Pi** | `~/.pi/agent/mcp.json`（用户级）或项目 `.pi/mcp.json` |
+| **Codex** | `~/.codex/config.toml`，TOML 格式见下 |
+| **OpenCode** | `opencode.json`，结构见下 |
+| **WorkBuddy**（腾讯桌面版） | 侧边栏 **插件 → MCP 服务器 → 配置 MCP**，即 `~/.workbuddy/mcp.json` 或项目 `.workbuddy/mcp.json` |
+| **ZCode**（Z.ai 桌面版） | **Settings → MCP Servers → New MCP Server → Full configuration**，粘贴上面的 JSON |
 
-`~` 表示用户主目录，Windows 通常对应 `%USERPROFILE%`。
+只有两个客户端格式不同：
 
-#### Codex
-
-写入 `~/.codex/config.toml`，或受信任项目的 `.codex/config.toml`：
+Codex（`~/.codex/config.toml`）：
 
 ```toml
 [mcp_servers.unreal-mcp]
@@ -85,15 +70,10 @@ command = "uv"
 args = ["--directory", "C:/path/to/unreal-mcp/Python", "run", "--frozen", "unreal_mcp_server.py"]
 ```
 
-也可执行：`codex mcp add unreal-mcp -- uv --directory "C:/path/to/unreal-mcp/Python" run --frozen unreal_mcp_server.py`。用 `codex mcp list` 检查。
-
-#### OpenCode
-
-合并到项目 `opencode.json` 或 `~/.config/opencode/opencode.json`：
+OpenCode（`opencode.json`）：
 
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "unreal-mcp": {
       "type": "local",
@@ -104,13 +84,11 @@ args = ["--directory", "C:/path/to/unreal-mcp/Python", "run", "--frozen", "unrea
 }
 ```
 
-用 `opencode mcp list` 检查。配置参考：[Claude Code](https://code.claude.com/docs/en/mcp)、[Codex](https://developers.openai.com/codex/mcp/)、[Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md)、[OpenCode](https://opencode.ai/docs/mcp-servers/)、[WorkBuddy](https://www.codebuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide)、[ZCode](https://zcode.z.ai/en/docs/mcp-services)。
+`~` 表示用户主目录（Windows 通常是 `%USERPROFILE%`）。
 
-### 第 4 步：验证连接
+### 第 3 步：验证
 
-连接任意客户端后，可以说：**“使用 unreal-mcp 列出当前关卡中的 Actor。”** 编辑器未开启时也能发现工具，但实际编辑器操作需要插件已监听。
-
-日常使用顺序：先启动编辑器（插件开始监听），再从客户端调用工具。Python 服务由客户端按配置自动拉起，无需手动运行。
+对客户端说：**“使用 unreal-mcp 列出当前关卡中的 Actor。”** 编辑器未开启时也能发现工具，实际操作需要插件已监听。日常顺序：先开编辑器，再从客户端调用。
 
 ## 蓝图整洁规范
 
