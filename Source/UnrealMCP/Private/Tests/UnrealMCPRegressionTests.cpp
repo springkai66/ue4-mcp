@@ -6,6 +6,8 @@
 #include "UnrealMCPBridge.h"
 #include "Commands/UnrealMCPCommonUtils.h"
 #include "Components/SceneComponent.h"
+#include "Components/WidgetComponent.h"
+#include "UnrealMCPTestTypes.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraphSchema_K2.h"
@@ -284,6 +286,42 @@ bool FMCPPropertyTest::RunTest(const FString& Parameters)
         TEXT("RelativeRotation"), MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{
             MakeShared<FJsonValueNumber>(10), MakeShared<FJsonValueNumber>(20), MakeShared<FJsonValueNumber>(30) }), Error));
     TestTrue(TEXT("Rotator reached its own storage"), Component->GetRelativeRotation().Equals(FRotator(10, 20, 30)));
+
+    // FIntPoint：DrawSize 是 protected，用公开读口 GetDrawSize 验证（返回 FVector2D）。
+    UWidgetComponent* WidgetComp = NewObject<UWidgetComponent>();
+    TestTrue(TEXT("IntPoint string is parsed"), FUnrealMCPCommonUtils::SetObjectProperty(WidgetComp,
+        TEXT("DrawSize"), MakeShared<FJsonValueString>(TEXT("X=1800 Y=460")), Error));
+    TestTrue(TEXT("IntPoint string reached storage"), WidgetComp->GetDrawSize().Equals(FVector2D(1800, 460)));
+    TestTrue(TEXT("IntPoint array is parsed"), FUnrealMCPCommonUtils::SetObjectProperty(WidgetComp,
+        TEXT("DrawSize"), MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{
+            MakeShared<FJsonValueNumber>(100), MakeShared<FJsonValueNumber>(50) }), Error));
+    TestTrue(TEXT("IntPoint array reached storage"), WidgetComp->GetDrawSize().Equals(FVector2D(100, 50)));
+
+    // TSet<FName> 写入、清空重写与元素去重；载体是插件内测试 UObject，不依赖项目模块。
+    UMCPTestSetObject* SetCarrier = NewObject<UMCPTestSetObject>();
+    TestTrue(TEXT("FName set array is parsed"), FUnrealMCPCommonUtils::SetObjectProperty(SetCarrier,
+        TEXT("NameSet"), MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{
+            MakeShared<FJsonValueString>(TEXT("city")), MakeShared<FJsonValueString>(TEXT("city")),
+            MakeShared<FJsonValueString>(TEXT("GVGCity")) }), Error));
+    TestTrue(TEXT("FName set reached storage with dedup"), SetCarrier->NameSet.Num() == 2
+        && SetCarrier->NameSet.Contains(FName(TEXT("city")))
+        && SetCarrier->NameSet.Contains(FName(TEXT("GVGCity"))));
+    TestTrue(TEXT("FName set is cleared and rewritten"), FUnrealMCPCommonUtils::SetObjectProperty(SetCarrier,
+        TEXT("NameSet"), MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{
+            MakeShared<FJsonValueString>(TEXT("onlyone")) }), Error));
+    TestTrue(TEXT("FName set rewrite replaced contents"), SetCarrier->NameSet.Num() == 1
+        && SetCarrier->NameSet.Contains(FName(TEXT("onlyone"))));
+    // 非字符串元素必须被拒绝且不清空原集合。
+    TestFalse(TEXT("FName set rejects number element"), FUnrealMCPCommonUtils::SetObjectProperty(SetCarrier,
+        TEXT("NameSet"), MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{
+            MakeShared<FJsonValueNumber>(7) }), Error));
+    TestTrue(TEXT("Rejected set write preserves contents"), SetCarrier->NameSet.Num() == 1);
+    // 字符串形态：逗号分隔解析，去重后两项。
+    TestTrue(TEXT("FName set comma string is parsed"), FUnrealMCPCommonUtils::SetObjectProperty(SetCarrier,
+        TEXT("NameSet"), MakeShared<FJsonValueString>(TEXT("alpha, beta, alpha")), Error));
+    TestTrue(TEXT("FName set comma string reached storage"), SetCarrier->NameSet.Num() == 2
+        && SetCarrier->NameSet.Contains(FName(TEXT("alpha")))
+        && SetCarrier->NameSet.Contains(FName(TEXT("beta"))));
     return true;
 }
 

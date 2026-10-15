@@ -29,6 +29,15 @@
 #include "Misc/PackageName.h"
 #include "UObject/UnrealType.h"
 
+namespace UnrealMCPSetHelper
+{
+	// FSetProperty::ElementProp 是 private，经 FScriptSetHelper 的公开读口取元素属性。
+	FORCEINLINE FProperty* GetElementProperty(const FSetProperty* SetProp)
+	{
+		return FScriptSetHelper(SetProp, nullptr).GetElementProperty();
+	}
+}
+
 // JSON Utilities
 TSharedPtr<FJsonObject> FUnrealMCPCommonUtils::CreateErrorResponse(const FString& Message)
 {
@@ -674,7 +683,7 @@ UK2Node_Event* FUnrealMCPCommonUtils::FindExistingEventNode(UEdGraph* Graph, con
     return nullptr;
 }
 
-bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& PropertyName, 
+bool FUnrealMCPCommonUtils::SetObjectProperty(void* Object, const FString& PropertyName, 
                                      const TSharedPtr<FJsonValue>& Value, FString& OutErrorMessage)
 {
     if (!Object)
@@ -688,7 +697,22 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
         OutErrorMessage = TEXT("Invalid JSON property value");
         return false;
     }
-    FProperty* Property = Object->GetClass()->FindPropertyByName(*PropertyName);
+    FProperty* Property = nullptr;
+    if (UObject* ObjectPtr = static_cast<UObject*>(Object))
+    {
+        // UObject 路径：按类反射查找属性。
+        if (IsValid(ObjectPtr))
+        {
+            Property = ObjectPtr->GetClass()->FindPropertyByName(*PropertyName);
+        }
+    }
+    else
+    {
+        // 结构体实例路径（UScriptStruct 内存）：从测试等场景传入，无法按名反射查找，
+        // 结构体属性的属性名由调用方持有 UScriptStruct 后解析，此处不支持。
+        OutErrorMessage = TEXT("Unsupported object payload");
+        return false;
+    }
     if (!Property)
     {
         OutErrorMessage = FString::Printf(TEXT("Property not found: %s"), *PropertyName);
@@ -1067,15 +1091,33 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
     }
     else if (FSetProperty* SetProp = CastField<FSetProperty>(Property))
     {
-        // TSet 属性：接受 JSON 数组；元素支持字符串（FName）或数字（枚举整值）。
-        if (Value->Type != EJson::Array)
+        // TSet 属性：接受 JSON 数组或逗号分隔字符串（"a, b, c"）；元素支持字符串（FName）或数字（枚举整值）。
+        TSharedPtr<FJsonValue> ArrayValue = Value;
+        TArray<TSharedPtr<FJsonValue>> StringElements;
+        if (Value->Type == EJson::String)
         {
-            OutErrorMessage = FString::Printf(TEXT("Set property %s needs a JSON array"), *PropertyName);
+            TArray<FString> Parts;
+            Value->AsString().ParseIntoArray(Parts, TEXT(","), true);
+            for (const FString& Part : Parts)
+            {
+                FString Trimmed = Part;
+                Trimmed.TrimStartInline();
+                Trimmed.TrimEndInline();
+                StringElements.Add(MakeShared<FJsonValueString>(Trimmed));
+            }
+            ArrayValue = MakeShared<FJsonValueArray>(StringElements);
+        }
+        if (ArrayValue->Type != EJson::Array)
+        {
+            OutErrorMessage = FString::Printf(TEXT("Set property %s needs a JSON array or comma-separated string"), *PropertyName);
             return false;
         }
-        FScriptSetHelper SetHelper(SetProp, PropertyAddr);
-        SetHelper.EmptyElements();
-        const TArray<TSharedPtr<FJsonValue>>& Elements = Value->AsArray();
+        const TArray<TSharedPtr<FJsonValue>>& Elements = ArrayValue->AsArray();
+        FProperty* ElementProp = UnrealMCPSetHelper::GetElementProperty(SetProp);
+        // 先整体校验元素类型与取值，全部合法后才清空写入，失败时不破坏原集合。
+        TArray<FName> NameEntries;
+        TArray<int32> IntEntries;
+        TArray<FString> StrEntries;
         for (const TSharedPtr<FJsonValue>& Element : Elements)
         {
             if (!Element.IsValid())
@@ -1083,43 +1125,54 @@ bool FUnrealMCPCommonUtils::SetObjectProperty(UObject* Object, const FString& Pr
                 OutErrorMessage = TEXT("Set array contains invalid element");
                 return false;
             }
-            // 逐元素写入再入集合；不支持元素类型时给出明确错误。
-            if (CastField<FNameProperty>(SetHelper.GetElementProperty()))
+            if (CastField<FNameProperty>(ElementProp))
             {
                 if (Element->Type != EJson::String)
                 {
                     OutErrorMessage = TEXT("FName set elements must be strings");
                     return false;
                 }
-                const FName Entry(*Element->AsString());
-                SetHelper.AddElement(&Entry);
+                NameEntries.Add(FName(*Element->AsString()));
             }
-            else if (CastField<FIntProperty>(SetHelper.GetElementProperty()))
+            else if (CastField<FIntProperty>(ElementProp))
             {
                 if (Element->Type != EJson::Number)
                 {
                     OutErrorMessage = TEXT("Integer set elements must be numbers");
                     return false;
                 }
-                const int32 Entry = static_cast<int32>(Element->AsNumber());
-                SetHelper.AddElement(&Entry);
+                IntEntries.Add(static_cast<int32>(Element->AsNumber()));
             }
-            else if (CastField<FStrProperty>(SetHelper.GetElementProperty()))
+            else if (CastField<FStrProperty>(ElementProp))
             {
                 if (Element->Type != EJson::String)
                 {
                     OutErrorMessage = TEXT("String set elements must be strings");
                     return false;
                 }
-                const FString Entry = Element->AsString();
-                SetHelper.AddElement(&Entry);
+                StrEntries.Add(Element->AsString());
             }
             else
             {
                 OutErrorMessage = FString::Printf(TEXT("Unsupported set element type: %s for property %s"),
-                    *SetHelper.GetElementProperty()->GetClass()->GetName(), *PropertyName);
+                    *ElementProp->GetClass()->GetName(), *PropertyName);
                 return false;
             }
+        }
+        FScriptSetHelper SetHelper(SetProp, PropertyAddr);
+        SetHelper.EmptyElements();
+        // 去重由集合语义保证，逐条 AddElement 即可。
+        for (const FName& Entry : NameEntries)
+        {
+            SetHelper.AddElement(&Entry);
+        }
+        for (const int32& Entry : IntEntries)
+        {
+            SetHelper.AddElement(&Entry);
+        }
+        for (const FString& Entry : StrEntries)
+        {
+            SetHelper.AddElement(&Entry);
         }
         SetHelper.Rehash();
         UE_LOG(LogTemp, Display, TEXT("Setting set property %s with %d elements"), *PropertyName, Elements.Num());
