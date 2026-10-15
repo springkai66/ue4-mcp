@@ -8,13 +8,18 @@
 AI 客户端 → MCP stdio → Python 服务 → TCP 127.0.0.1:55557 → Unreal 编辑器插件
 ```
 
-## 主要改动
+## 核心功能与主要命令
 
-- 适配 UE4.26；修正 Blueprint/UMG 创建、反射属性写入和 DataTable 行处理。
-- 修复 JSON 字节分帧、UTF-8 分包、部分发送、socket 释放及停止流程。
-- 增加资产路径校验、保存/编译失败反馈，以及蓝图图表 Schema 连线检查。
-- 蓝图节点自动排版与图表整理；UMG 通用控件组合（原生与项目控件）。
-- 修复 Python 响应解包、工具注册和连接处理，合并脚本传输代码并补充回归检查；发布副本移除项目专有路径和名称。
+本仓库为 **C++ 编辑器插件 + MCP 服务端**，让 AI 客户端驱动 UE4.26：关卡与 Actor 操作、蓝图资产与图表编排、UMG 控件组合、材质、工程设置以及资产属性写入。反射属性写入支持 Vector、Rotator、FIntPoint、数组和 TSet；资产保存带直存回退，失败时返回具体原因而不是静默成功。
+
+- **编辑器与 Actor** — `get_actors_in_level`、`find_actors_by_name`、`spawn_actor`、`spawn_blueprint_actor`、`delete_actor`、`set_actor_transform`、`get_actor_properties`、`set_actor_property`、`focus_viewport`、`duplicate_level`
+- **蓝图资产** — `create_blueprint`、`add_component_to_blueprint`、`set_component_property`、`set_static_mesh_properties`、`set_physics_properties`、`set_blueprint_property`、`set_pawn_properties`、`compile_blueprint`
+- **蓝图图表** — `add_blueprint_event_node`、`add_blueprint_input_action_node`、`add_blueprint_function_node`、`add_blueprint_variable`、`add_blueprint_get_self_component_reference`、`add_blueprint_self_reference`、`connect_blueprint_nodes`、`find_blueprint_nodes`、`get_blueprint_node_details`、`delete_blueprint_node`
+- **图表排版** — `get_blueprint_graph`、`format_blueprint_graph`
+- **UMG 控件** — `create_umg_widget_blueprint`、`add_text_block_to_widget`、`add_button_to_widget`、`add_image_to_widget`、`list_widget_blueprints`、`get_widget_tree`、`add_widget_to_widget`、`bind_widget_event`、`set_text_block_binding`、`add_widget_to_viewport`
+- **材质** — `create_material`、`add_vector_parameter`、`set_material_on_component`
+- **工程与资产** — `create_input_mapping`；插件端还实现了 DataTable 行读写（`create_data_table`、`add_row`、`read_row`）与任意资产属性写入（`set_asset_property`），供直接使用 TCP 协议的客户端调用。
+- **调试** — `get_output_log`
 
 ## 快速开始
 

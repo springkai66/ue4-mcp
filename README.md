@@ -8,13 +8,18 @@ A modified version of [chongdashu/unreal-mcp](https://github.com/chongdashu/unre
 AI client → MCP stdio → Python server → TCP 127.0.0.1:55557 → Unreal editor plugin
 ```
 
-## Main changes
+## Core features and main commands
 
-- UE4.26 editor compatibility; corrected Blueprint/UMG creation, reflection property writes and DataTable row handling.
-- JSON byte framing, UTF-8 fragmentation, partial sends, socket cleanup and shutdown handling.
-- Asset path validation, save/compile error reporting and graph schema connection checks.
-- Automatic Blueprint node layout with graph formatting; generic UMG composition (native and project widgets).
-- Python response unwrapping, tool registration, connection handling, shared script transport and regression checks. Project-specific paths and names removed from the release copy.
+An editor plugin plus MCP server for driving UE4.26 from an AI client: level and actor manipulation, Blueprint asset and graph authoring, UMG widget composition, materials, project settings, and asset property writes. Reflection-based property setting covers Vectors, Rotators, FIntPoint, arrays and TSet; asset saves fall back to a direct package save and report the underlying error instead of silently succeeding.
+
+- **Editor and actors** — `get_actors_in_level`, `find_actors_by_name`, `spawn_actor`, `spawn_blueprint_actor`, `delete_actor`, `set_actor_transform`, `get_actor_properties`, `set_actor_property`, `focus_viewport`, `duplicate_level`
+- **Blueprint assets** — `create_blueprint`, `add_component_to_blueprint`, `set_component_property`, `set_static_mesh_properties`, `set_physics_properties`, `set_blueprint_property`, `set_pawn_properties`, `compile_blueprint`
+- **Blueprint graph** — `add_blueprint_event_node`, `add_blueprint_input_action_node`, `add_blueprint_function_node`, `add_blueprint_variable`, `add_blueprint_get_self_component_reference`, `add_blueprint_self_reference`, `connect_blueprint_nodes`, `find_blueprint_nodes`, `get_blueprint_node_details`, `delete_blueprint_node`
+- **Graph layout** — `get_blueprint_graph`, `format_blueprint_graph`
+- **UMG widgets** — `create_umg_widget_blueprint`, `add_text_block_to_widget`, `add_button_to_widget`, `add_image_to_widget`, `list_widget_blueprints`, `get_widget_tree`, `add_widget_to_widget`, `bind_widget_event`, `set_text_block_binding`, `add_widget_to_viewport`
+- **Materials** — `create_material`, `add_vector_parameter`, `set_material_on_component`
+- **Project and assets** — `create_input_mapping`; the bridge also implements DataTable row read/write (`create_data_table`, `add_row`, `read_row`) and arbitrary asset property writes (`set_asset_property`) for clients speaking the TCP protocol directly.
+- **Debug** — `get_output_log`
 
 ## Quick start
 
