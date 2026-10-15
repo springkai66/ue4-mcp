@@ -58,7 +58,8 @@ public:
     static UK2Node_Event* FindExistingEventNode(UEdGraph* Graph, const FString& EventName);
 
     // Property utilities
-    static bool SetObjectProperty(UObject* Object, const FString& PropertyName, 
+    // Object 支持任意 UObject 或 UScriptStruct 实例指针（如 TSet 属性测试用的结构体）。
+    static bool SetObjectProperty(void* Object, const FString& PropertyName, 
                                  const TSharedPtr<FJsonValue>& Value, FString& OutErrorMessage);
 
     // 可靠保存：先走 UEditorAssetLibrary，AssetRegistry 未就绪等场景回退 UPackage::SavePackage 直存
